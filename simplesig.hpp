@@ -367,6 +367,15 @@ namespace simplesig
     template <>
     struct optional<void> {};
 
+    template <>
+    struct optional<void const> {};
+
+    template <>
+    struct optional<void volatile> {};
+
+    template <>
+    struct optional<void const volatile> {};
+
     namespace detail
     {
         struct connection_base
@@ -668,7 +677,7 @@ namespace simplesig
                 detail::recursion_guard guard{ recursion_lock };
 
                 for (auto itr = std::begin(connections); itr != std::end(connections);) {
-                    connection_ptr conn{ *itr };
+                    auto const& conn{ *itr };
 
                     if (!conn->connected()) {
                         itr = connections.erase(itr);
@@ -730,7 +739,7 @@ namespace simplesig
                 detail::recursion_guard guard{ recursion_lock };
 
                 for (auto itr = std::begin(connections); itr != std::end(connections);) {
-                    connection_ptr conn{ *itr };
+                    auto const& conn{ *itr };
 
                     if (!conn->connected()) {
                         itr = connections.erase(itr);
