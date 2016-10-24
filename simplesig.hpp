@@ -597,11 +597,22 @@ namespace simplesig
             append(list);
         }
 
+        void append(connection const& conn)
+        {
+            connections.push_front(scoped_connection{ conn });
+        }
+
         void append(std::initializer_list<connection> list)
         {
             for (auto const& connection : list) {
-                connections.push_front(scoped_connection{ connection });
+                append(connection);
             }
+        }
+
+        scoped_connection_container& operator += (connection const& conn)
+        {
+            append(conn);
+            return *this;
         }
 
         void disconnect()
