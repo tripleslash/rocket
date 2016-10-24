@@ -653,12 +653,39 @@ namespace simplesig
         template <class T = R>
         std::vector<T> invoke_get_all(Args const&... args) const
         {
+            bool error = false;
+
+            assert(!recursion_lock
+                && "Attempt to invoke a signal recursively");
+
             std::vector<T> results;
             results.reserve(connections.size());
 
-            invoke_generic([&](slot_type const& slot) {
-                results.emplace_back(slot(args...));
-            });
+            {
+                detail::recursion_guard guard{ recursion_lock };
+
+                for (auto itr = std::begin(connections); itr != std::end(connections);) {
+                    connection_ptr conn{ *itr };
+
+                    if (!conn->connected()) {
+                        itr = connections.erase(itr);
+                        continue;
+                    }
+
+                    try {
+                        results.emplace_back(slot(args...));
+                    } catch (...) {
+                        error = true;
+                    }
+
+                    ++itr;
+                }
+            }
+
+            if (error) {
+                throw invocation_slot_error{};
+            }
+
             return results;
         }
 
@@ -687,8 +714,9 @@ namespace simplesig
         }
 
     private:
-        template <class Func>
-        void invoke_generic(Func const& func) const
+        template <class ValueSelector, class T = R>
+        std::enable_if_t<std::is_void<T>::value, void>
+            invoke_impl(Args const&... args) const
         {
             bool error = false;
 
@@ -707,7 +735,7 @@ namespace simplesig
                     }
 
                     try {
-                        func(conn->slot);
+                        slot(args...);
                     } catch(...) {
                         error = true;
                     }
@@ -719,15 +747,6 @@ namespace simplesig
             if (error) {
                 throw invocation_slot_error{};
             }
-        }
-
-        template <class ValueSelector, class T = R>
-        std::enable_if_t<std::is_void<T>::value, void>
-            invoke_impl(Args const&... args) const
-        {
-            invoke_generic([&](slot_type const& slot) {
-                slot(args...);
-            });
         }
 
         template <class ValueSelector, class T = R>
