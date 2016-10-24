@@ -29,6 +29,7 @@
 #include <utility>
 #include <functional>
 #include <forward_list>
+#include <initializer_list>
 
 namespace simplesig
 {
