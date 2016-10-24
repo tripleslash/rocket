@@ -364,6 +364,9 @@ namespace simplesig
         bool initialized = false;
     };
 
+    template <>
+    struct optional<void> {};
+
     namespace detail
     {
         struct connection_base
@@ -673,7 +676,7 @@ namespace simplesig
                     }
 
                     try {
-                        results.emplace_back(slot(args...));
+                        results.emplace_back(conn->slot(args...));
                     } catch (...) {
                         error = true;
                     }
@@ -735,7 +738,7 @@ namespace simplesig
                     }
 
                     try {
-                        slot(args...);
+                        conn->slot(args...);
                     } catch(...) {
                         error = true;
                     }
