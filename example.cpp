@@ -2,6 +2,7 @@
 #include "simplesig.hpp"
 #include <iostream>
 #include <list>
+#include <forward_list>
 
 struct Testing
 {
@@ -42,9 +43,18 @@ int main()
     }
 
     Testing testing;
-    test.connect(simplesig::slot(testing, &Testing::hello));
 
-    test(1337);
+    {
+        // After this block, all connections in this container will be disconnected
+        simplesig::scoped_connection_container connections;
+
+        connections.append({
+            test.connect(simplesig::slot(testing, &Testing::hello)),
+            test.connect(simplesig::slot(testing, &Testing::hello))
+        });
+
+        test(1337);
+    }
 
     std::cin.get();
     return 0;

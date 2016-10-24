@@ -28,6 +28,7 @@
 #include <vector>
 #include <utility>
 #include <functional>
+#include <forward_list>
 
 namespace simplesig
 {
@@ -360,8 +361,8 @@ namespace simplesig
             initialized = false;
         }
 
-        std::aligned_storage_t<sizeof(value_type), std::alignment_of<value_type>::value> buffer;
         bool initialized = false;
+        std::aligned_storage_t<sizeof(value_type), std::alignment_of<value_type>::value> buffer;
     };
 
     template <>
@@ -545,11 +546,6 @@ namespace simplesig
         {
         }
 
-        scoped_connection(scoped_connection const& rhs)
-            : connection{ rhs }
-        {
-        }
-
         scoped_connection(scoped_connection&& rhs)
             : connection{ std::move(rhs) }
         {
@@ -561,23 +557,57 @@ namespace simplesig
             return *this;
         }
 
-        scoped_connection& operator = (connection const& rhs)
-        {
-            connection::operator=(rhs);
-            return *this;
-        }
-
         scoped_connection& operator = (scoped_connection&& rhs)
         {
             connection::operator=(std::move(rhs));
             return *this;
         }
 
-        scoped_connection& operator = (scoped_connection const& rhs)
+        scoped_connection& operator = (connection const& rhs)
         {
             connection::operator=(rhs);
             return *this;
         }
+
+    private:
+        scoped_connection(scoped_connection const&) = delete;
+
+        scoped_connection& operator = (scoped_connection const&) = delete;
+    };
+
+    struct scoped_connection_container
+    {
+        scoped_connection_container() = default;
+        ~scoped_connection_container() = default;
+
+        scoped_connection_container(scoped_connection_container&& s)
+            : connections{ std::move(s.connections) }
+        {
+        }
+
+        scoped_connection_container& operator = (scoped_connection_container&& rhs)
+        {
+            connections = std::move(rhs.connections);
+            return *this;
+        }
+
+        scoped_connection_container(std::initializer_list<connection> list)
+        {
+            append(list);
+        }
+
+        void append(std::initializer_list<connection> list)
+        {
+            for (auto const& connection : list) {
+                connections.push_front(scoped_connection{ connection });
+            }
+        }
+
+    private:
+        scoped_connection_container(scoped_connection_container const&) = delete;
+        scoped_connection_container& operator = (scoped_connection_container const&) = delete;
+
+        std::forward_list<scoped_connection> connections;
     };
 
     template <
