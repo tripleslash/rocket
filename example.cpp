@@ -3,6 +3,15 @@
 #include <iostream>
 #include <list>
 
+struct Testing
+{
+    int hello(int a)
+    {
+        std::cout << "Hello number " << a << std::endl;
+        return 0;
+    }
+};
+
 int main()
 {
     simplesig::signal<int(int)> test;
@@ -27,9 +36,15 @@ int main()
         typedef simplesig::range<std::list<int>> selector;
 
         for (int x : test.invoke<selector>(5)) {
-            std::cout << x << ", ";
+            std::cout << x << " ";
         }
+        std::cout << std::endl;
     }
+
+    Testing testing;
+    test.connect(simplesig::slot(testing, &Testing::hello));
+
+    test(1337);
 
     std::cin.get();
     return 0;

@@ -794,6 +794,22 @@ namespace simplesig
         mutable std::deque<connection_ptr> connections;
         mutable bool recursion_lock = false;
     };
+
+    template <class Instance, class Class, class R, class... Args>
+    std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
+    {
+        return [&object, method](Args... args) {
+            return (object .* method) (args...);
+        };
+    }
+
+    template <class Class, class R, class... Args>
+    std::function<R(Args...)> slot(Class* object, R(Class::*method)(Args...))
+    {
+        return [object, method](Args... args) {
+            return (object ->* method)(args...);
+        };
+    }
 }
 
 #endif
