@@ -603,6 +603,11 @@ namespace simplesig
             }
         }
 
+        void disconnect()
+        {
+            connections.clear();
+        }
+
     private:
         scoped_connection_container(scoped_connection_container const&) = delete;
         scoped_connection_container& operator = (scoped_connection_container const&) = delete;
