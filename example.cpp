@@ -49,8 +49,8 @@ int main()
         simplesig::scoped_connection_container connections;
 
         connections.append({
-            test.connect(simplesig::slot(testing, &Testing::hello)),
-            test.connect(simplesig::slot(testing, &Testing::hello))
+            test.connect(testing, &Testing::hello),
+            test.connect(testing, &Testing::hello),
         });
 
         test(1337);

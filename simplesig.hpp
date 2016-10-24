@@ -704,6 +704,22 @@ namespace simplesig
             return connection;
         }
 
+        template <class Class>
+        connection connect(Class& object, R(Class::*method)(Args...), bool first = false)
+        {
+            return connect([&object, method](Args... args) {
+                return (object.*method) (args...);
+            }, first);
+        }
+
+        template <class Class>
+        connection connect(Class* object, R(Class::*method)(Args...), bool first = false)
+        {
+            return connect([object, method](Args... args) {
+                return (object->*method)(args...);
+            }, first);
+        }
+
         connection operator += (slot_type slot)
         {
             return connect(std::move(slot));
@@ -842,11 +858,11 @@ namespace simplesig
         mutable bool recursion_lock = false;
     };
 
-    template <class Instance, class Class, class R, class... Args>
-    std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
+    template <class Class, class R, class... Args>
+    std::function<R(Args...)> slot(Class& object, R(Class::*method)(Args...))
     {
         return [&object, method](Args... args) {
-            return (object .* method) (args...);
+            return (object.*method) (args...);
         };
     }
 
@@ -854,7 +870,7 @@ namespace simplesig
     std::function<R(Args...)> slot(Class* object, R(Class::*method)(Args...))
     {
         return [object, method](Args... args) {
-            return (object ->* method)(args...);
+            return (object->*method)(args...);
         };
     }
 }
