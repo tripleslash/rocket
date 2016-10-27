@@ -742,7 +742,7 @@ namespace simplesig
                 for (auto itr = std::begin(connections); itr != std::end(connections);) {
                     auto const& conn{ *itr };
 
-                    if (!conn->connected()) {
+                    if (conn->slot == nullptr) {
                         itr = connections.erase(itr);
                         continue;
                     }
@@ -804,7 +804,7 @@ namespace simplesig
                 for (auto itr = std::begin(connections); itr != std::end(connections);) {
                     auto const& conn{ *itr };
 
-                    if (!conn->connected()) {
+                    if (conn->slot == nullptr) {
                         itr = connections.erase(itr);
                         continue;
                     }
