@@ -4,7 +4,7 @@
 
 struct Testing
 {
-    int hello(int a)
+    int hello(float a)
     {
         std::cout << "Testing: " << a << std::endl;
         return 0;

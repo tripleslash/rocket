@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////
 // simplesig - lightweight & fast signal/slots library                             //
 //                                                                                 //
-//   v1.1 - public domain                                                          //
+//   v1.0 - public domain                                                          //
 //   no warranty is offered or implied; use this code at your own risk             //
 //                                                                                 //
 // AUTHORS                                                                         //
@@ -734,19 +734,27 @@ namespace simplesig
             return connection;
         }
 
-        template <class Class>
-        connection connect(Class& object, R(Class::*method)(Args...), bool first = false)
+        template <class R1, class... Args1>
+        connection connect(R1(*method)(Args1...), bool first = false)
         {
-            return connect([&object, method](Args... args) {
-                return (object.*method)(args...);
+            return connect([method](Args... args) {
+                return R((*method)(Args1(args)...));
             }, first);
         }
 
-        template <class Class>
-        connection connect(Class* object, R(Class::*method)(Args...), bool first = false)
+        template <class Instance, class Class, class R1, class... Args1>
+        connection connect(Instance& object, R1(Class::*method)(Args1...), bool first = false)
+        {
+            return connect([&object, method](Args... args) {
+                return R((object.*method)(Args1(args)...));
+            }, first);
+        }
+
+        template <class Instance, class Class, class R1, class... Args1>
+        connection connect(Instance* object, R1(Class::*method)(Args1...), bool first = false)
         {
             return connect([object, method](Args... args) {
-                return (object->*method)(args...);
+                return R((object->*method)(Args1(args)...));
             }, first);
         }
 
@@ -863,16 +871,16 @@ namespace simplesig
         mutable bool recursion_lock = false;
     };
 
-    template <class Class, class R, class... Args>
-    std::function<R(Args...)> slot(Class& object, R(Class::*method)(Args...))
+    template <class Instance, class Class, class R, class... Args>
+    std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
     {
         return [&object, method](Args... args) {
             return (object.*method)(args...);
         };
     }
 
-    template <class Class, class R, class... Args>
-    std::function<R(Args...)> slot(Class* object, R(Class::*method)(Args...))
+    template <class Instance, class Class, class R, class... Args>
+    std::function<R(Args...)> slot(Instance* object, R(Class::*method)(Args...))
     {
         return [object, method](Args... args) {
             return (object->*method)(args...);
