@@ -1,16 +1,16 @@
 
 #include "simplesig.hpp"
 #include <iostream>
-#include <list>
-#include <forward_list>
 
 struct Testing
 {
     int hello(int a)
     {
-        std::cout << "Hello number " << a << std::endl;
+        std::cout << "Testing: " << a << std::endl;
         return 0;
     }
+
+    simplesig::scoped_connection_container connections;
 };
 
 int main()
@@ -18,23 +18,40 @@ int main()
     simplesig::signal<int(int)> test;
 
     test.connect([](int x) {
+        return x * 3;
+    });
+    test.connect([](int x) {
+        return x * 1;
+    });
+    test.connect([](int x) {
         return x * 2;
     });
 
-    // Give me the last result in an optional (default behaviour)
-    simplesig::optional<int> r{ test(5) };
-    std::cout << "Optional: " << *r << std::endl;
+    {
+        // Give me the minimal value of all slots
+        typedef simplesig::minimum<int> selector;
+
+        std::cout << "Minimum: " << test.invoke<selector>(5) << std::endl;
+    }
+
+    {
+        // Give me the last result in an optional (default behaviour)
+        simplesig::optional<int> r{ test(5) };
+        std::cout << "Optional: " << *r << std::endl;
+    }
 
     // Connect a new slot via scoped connections
     {
         simplesig::scoped_connection scoped{
             test.connect([](int x) {
-                return x * 3;
+                return x * 4;
             })
         };
 
-        // Give me all results in a list
-        typedef simplesig::range<std::list<int>> selector;
+        // Give me all results in a vector
+        typedef simplesig::range<int> selector;
+
+        std::cout << "Range: ";
 
         for (int x : test.invoke<selector>(5)) {
             std::cout << x << " ";
@@ -42,13 +59,11 @@ int main()
         std::cout << std::endl;
     }
 
-    Testing testing;
-
     {
-        // After this block, all connections in this container will be disconnected
-        simplesig::scoped_connection_container connections;
+        // The connections are only connected as long as the testing-object is alive
+        Testing testing;
 
-        connections.append({
+        testing.connections.append({
             test.connect(testing, &Testing::hello),
             test.connect(testing, &Testing::hello),
         });

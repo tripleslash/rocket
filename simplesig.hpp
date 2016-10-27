@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////
 // simplesig - lightweight & fast signal/slots library                             //
 //                                                                                 //
-//   v1.0 - public domain                                                          //
+//   v1.1 - public domain                                                          //
 //   no warranty is offered or implied; use this code at your own risk             //
 //                                                                                 //
 // AUTHORS                                                                         //
@@ -24,10 +24,10 @@
 #include <type_traits>
 #include <cassert>
 #include <memory>
-#include <deque>
-#include <vector>
 #include <utility>
 #include <functional>
+#include <vector>
+#include <deque>
 #include <forward_list>
 #include <initializer_list>
 
@@ -37,105 +37,138 @@ namespace simplesig
     struct minimum
     {
         typedef T value_type;
+        typedef T result_type;
 
-        template <class Iterator>
-        value_type operator () (Iterator first, Iterator last) const
+        template <class U>
+        void operator () (U&& value)
         {
-            if (first == last) {
-                return value_type{};
+            if (!has_value || value < current) {
+                current = std::forward<U>(value);
+                has_value = true;
             }
-
-            value_type min = *first++;
-            while (first != last) {
-                if (min > *first) {
-                    min = *first;
-                }
-                ++first;
-            }
-
-            return min;
         }
+
+        void hint(std::size_t)
+        {
+        }
+
+        result_type result()
+        {
+            return std::move(current);
+        }
+
+    private:
+        value_type current{};
+        bool has_value{ false };
     };
 
     template <class T>
     struct maximum
     {
         typedef T value_type;
+        typedef T result_type;
 
-        template <class Iterator>
-        value_type operator () (Iterator first, Iterator last) const
+        template <class U>
+        void operator () (U&& value)
         {
-            if (first == last) {
-                return value_type{};
+            if (!has_value || value > current) {
+                current = std::forward<U>(value);
+                has_value = true;
             }
-
-            value_type max = *first++;
-            while (first != last) {
-                if (max < *first) {
-                    max = *first;
-                }
-                ++first;
-            }
-
-            return max;
         }
+
+        void hint(std::size_t)
+        {
+        }
+
+        result_type result()
+        {
+            return std::move(current);
+        }
+
+    private:
+        value_type current{};
+        bool has_value{ false };
     };
 
     template <class T>
     struct first
     {
         typedef T value_type;
+        typedef T result_type;
 
-        template <class Iterator>
-        value_type operator () (Iterator first, Iterator last) const
+        template <class U>
+        void operator () (U&& value)
         {
-            return first != last ? value_type{ *first } : value_type{};
+            if (!has_value) {
+                current = std::forward<U>(value);
+                has_value = true;
+            }
         }
+
+        void hint(std::size_t)
+        {
+        }
+
+        result_type result()
+        {
+            return std::move(current);
+        }
+
+    private:
+        value_type current{};
+        bool has_value{ false };
     };
 
     template <class T>
     struct last
     {
         typedef T value_type;
+        typedef T result_type;
 
-        template <class Iterator>
-        value_type operator () (Iterator first, Iterator last) const
+        template <class U>
+        void operator () (U&& value)
         {
-            typedef typename std::iterator_traits<Iterator>::iterator_category category;
-            return get(first, last, category{});
+            current = std::forward<U>(value);
+        }
+
+        void hint(std::size_t)
+        {
+        }
+
+        result_type result()
+        {
+            return std::move(current);
         }
 
     private:
-        template <class Iterator>
-        value_type get(Iterator first, Iterator last, std::bidirectional_iterator_tag) const
-        {
-            return first != last ? value_type{ *(--last) } : value_type{};
-        }
-
-        template <class Iterator>
-        value_type get(Iterator first, Iterator last, std::forward_iterator_tag) const
-        {
-            if (first == last) {
-                return value_type{};
-            }
-            Iterator current{ first++ };
-            while (first != last) {
-                current = first++;
-            }
-            return value_type{ *current };
-        }
+        value_type current{};
     };
 
     template <class T>
     struct range
     {
         typedef T value_type;
+        typedef std::vector<T> result_type;
 
-        template <class Iterator>
-        value_type operator () (Iterator&& first, Iterator&& last) const
+        template <class U>
+        void operator () (U&& value)
         {
-            return value_type{ std::forward<Iterator>(first), std::forward<Iterator>(last) };
+            values.emplace_back(std::forward<U>(value));
         }
+
+        void hint(std::size_t size)
+        {
+            values.reserve(size);
+        }
+
+        result_type result()
+        {
+            return std::move(values);
+        }
+
+    private:
+        std::vector<value_type> values;
     };
 
     struct error : std::exception
@@ -643,14 +676,12 @@ namespace simplesig
 
         ~signal()
         {
-            assert(!recursion_lock
-                && "Attempt to destroy a signal while an invocation is active");
+            assert(!recursion_lock && "Attempt to destroy a signal while an invocation is active");
         }
 
         signal(signal&& rhs)
         {
-            assert(!rhs.recursion_lock
-                && "Attempt to move a signal while an invocation is active");
+            assert(!rhs.recursion_lock && "Attempt to move a signal while an invocation is active");
 
             connections = std::move(rhs.connections);
         }
@@ -676,8 +707,7 @@ namespace simplesig
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
-                assert(!recursion_lock
-                    && "Attempt to assign a signal while an invocation is active");
+                assert(!recursion_lock && "Attempt to assign a signal while an invocation is active");
 
                 connections.clear();
 
@@ -708,7 +738,7 @@ namespace simplesig
         connection connect(Class& object, R(Class::*method)(Args...), bool first = false)
         {
             return connect([&object, method](Args... args) {
-                return (object.*method) (args...);
+                return (object.*method)(args...);
             }, first);
         }
 
@@ -723,45 +753,6 @@ namespace simplesig
         connection operator += (slot_type slot)
         {
             return connect(std::move(slot));
-        }
-
-        template <class T = R>
-        std::vector<T> invoke_get_all(Args const&... args) const
-        {
-            bool error = false;
-
-            assert(!recursion_lock
-                && "Attempt to invoke a signal recursively");
-
-            std::vector<T> results;
-            results.reserve(connections.size());
-
-            {
-                detail::recursion_guard guard{ recursion_lock };
-
-                for (auto itr = std::begin(connections); itr != std::end(connections);) {
-                    auto const& conn{ *itr };
-
-                    if (conn->slot == nullptr) {
-                        itr = connections.erase(itr);
-                        continue;
-                    }
-
-                    try {
-                        results.emplace_back(conn->slot(args...));
-                    } catch (...) {
-                        error = true;
-                    }
-
-                    ++itr;
-                }
-            }
-
-            if (error) {
-                throw invocation_slot_error{};
-            }
-
-            return results;
         }
 
         void clear()
@@ -788,15 +779,12 @@ namespace simplesig
             return recursion_lock;
         }
 
-    private:
-        template <class ValueSelector, class T = R>
-        std::enable_if_t<std::is_void<T>::value, void>
-            invoke_impl(Args const&... args) const
+        template <class ValueSelector = ReturnValueSelector, class T = R>
+        std::enable_if_t<std::is_void<T>::value, void> invoke(Args const&... args) const
         {
-            bool error = false;
+            assert(!recursion_lock && "Attempt to invoke a signal recursively");
 
-            assert(!recursion_lock
-                && "Attempt to invoke a signal recursively");
+            bool error{ false };
 
             {
                 detail::recursion_guard guard{ recursion_lock };
@@ -824,30 +812,47 @@ namespace simplesig
             }
         }
 
-        template <class ValueSelector, class T = R>
-        std::enable_if_t<!std::is_void<T>::value, typename ValueSelector::value_type>
-            invoke_impl(Args const&... args) const
+        template <class ValueSelector = ReturnValueSelector, class T = R>
+        std::enable_if_t<!std::is_void<T>::value, decltype(ValueSelector{}.result())> invoke(Args const&... args) const
         {
-            auto results{ invoke_get_all<T>(args...) };
-            return ValueSelector{} (
-                std::make_move_iterator(std::begin(results)),
-                std::make_move_iterator(std::end(results))
-                );
+            assert(!recursion_lock && "Attempt to invoke a signal recursively");
+
+            bool error{ false };
+
+            ValueSelector selector{};
+            selector.hint(connections.size());
+
+            {
+                detail::recursion_guard guard{ recursion_lock };
+
+                for (auto itr = std::begin(connections); itr != std::end(connections);) {
+                    auto const& conn{ *itr };
+
+                    if (conn->slot == nullptr) {
+                        itr = connections.erase(itr);
+                        continue;
+                    }
+
+                    try {
+                        selector(conn->slot(args...));
+                    } catch(...) {
+                        error = true;
+                    }
+
+                    ++itr;
+                }
+            }
+
+            if (error) {
+                throw invocation_slot_error{};
+            }
+
+            return selector.result();
         }
 
-    public:
-        template <class ValueSelector = ReturnValueSelector>
-        auto operator () (Args const&... args) const
-            -> decltype(invoke_impl<ValueSelector>(args...))
+        auto operator () (Args const&... args) const -> decltype(invoke<>(args...))
         {
-            return invoke_impl<ValueSelector>(args...);
-        }
-
-        template <class ValueSelector = ReturnValueSelector>
-        auto invoke(Args const&... args) const
-            -> decltype(invoke_impl<ValueSelector>(args...))
-        {
-            return invoke_impl<ValueSelector>(args...);
+            return invoke<>(args...);
         }
 
     private:
@@ -862,7 +867,7 @@ namespace simplesig
     std::function<R(Args...)> slot(Class& object, R(Class::*method)(Args...))
     {
         return [&object, method](Args... args) {
-            return (object.*method) (args...);
+            return (object.*method)(args...);
         };
     }
 
