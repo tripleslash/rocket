@@ -824,11 +824,6 @@ namespace simplesig
             connections.swap(other.connections);
         }
 
-        bool locked() const
-        {
-            return recursion_lock;
-        }
-
         template <class ValueSelector = ReturnValueSelector, class T = R>
         std::enable_if_t<std::is_void<T>::value, void> invoke(Args const&... args) const
         {
