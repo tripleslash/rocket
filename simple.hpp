@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////////////
-// simplesig - lightweight & fast signal/slots library                             //
+// simple - lightweight & fast signal/slots & utility library                      //
 //                                                                                 //
 //   v1.1 - public domain                                                          //
 //   no warranty is offered or implied; use this code at your own risk             //
@@ -16,8 +16,8 @@
 //   publish, and distribute this file as you see fit.                             //
 /////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef SIMPLESIG_HPP_INCLUDED
-#define SIMPLESIG_HPP_INCLUDED
+#ifndef SIMPLE_HPP_INCLUDED
+#define SIMPLE_HPP_INCLUDED
 
 #include <iterator>
 #include <exception>
@@ -27,17 +27,17 @@
 #include <utility>
 #include <functional>
 #include <vector>
-#include <deque>
 #include <forward_list>
 #include <initializer_list>
+#include <atomic>
 
 // Redefine this if your compiler doesn't support the thread_local keyword
 // For VS < 2015 you can define it to __declspec(thread) for example.
-#ifndef SIMPLESIG_THREAD_LOCAL
-#define SIMPLESIG_THREAD_LOCAL thread_local
+#ifndef SIMPLE_THREAD_LOCAL
+#define SIMPLE_THREAD_LOCAL thread_local
 #endif
 
-namespace simplesig
+namespace simple
 {
     template <class T>
     struct minimum
@@ -417,6 +417,780 @@ namespace simplesig
     template <>
     struct optional<void const volatile> {};
 
+    template <class T>
+    struct intrusive_ptr
+    {
+        typedef T element_type;
+        typedef T* pointer_type;
+        typedef T& reference_type;
+
+        intrusive_ptr()
+            : ptr{ nullptr }
+        {
+        }
+
+        intrusive_ptr(std::nullptr_t)
+            : ptr{ nullptr }
+        {
+        }
+
+        intrusive_ptr(pointer_type p)
+            : ptr{ p }
+        {
+            if (ptr) {
+                ptr->addref();
+            }
+        }
+
+        intrusive_ptr(intrusive_ptr const& p)
+            : ptr{ p.ptr }
+        {
+            if (ptr) {
+                ptr->addref();
+            }
+        }
+
+        intrusive_ptr(intrusive_ptr&& p)
+            : ptr{ p.ptr }
+        {
+            p.ptr = nullptr;
+        }
+
+        template <class U>
+        explicit intrusive_ptr(intrusive_ptr<U> const& p)
+            : ptr{ p.ptr }
+        {
+            if (ptr) {
+                ptr->addref();
+            }
+        }
+
+        template <class U>
+        explicit intrusive_ptr(intrusive_ptr<U>&& p)
+            : ptr{ p.ptr }
+        {
+            p.ptr = nullptr;
+        }
+
+        ~intrusive_ptr()
+        {
+            if (ptr) {
+                ptr->release();
+            }
+        }
+
+        pointer_type get() const
+        {
+            return ptr;
+        }
+
+        operator pointer_type() const
+        {
+            return ptr;
+        }
+
+        pointer_type operator -> () const
+        {
+            assert(ptr != nullptr);
+            return ptr;
+        }
+
+        reference_type operator * () const
+        {
+            assert(ptr != nullptr);
+            return *ptr;
+        }
+
+        pointer_type* operator & ()
+        {
+            assert(ptr == nullptr);
+            return &ptr;
+        }
+
+        pointer_type const* operator & () const
+        {
+            return &ptr;
+        }
+
+        intrusive_ptr& operator = (pointer_type p)
+        {
+            if (p) {
+                p->addref();
+            }
+            pointer_type o = ptr;
+            ptr = p;
+            if (o) {
+                o->release();
+            }
+            return *this;
+        }
+
+        intrusive_ptr& operator = (std::nullptr_t)
+        {
+            if (ptr) {
+                ptr->release();
+                ptr = nullptr;
+            }
+            return *this;
+        }
+
+        intrusive_ptr& operator = (intrusive_ptr const& p)
+        {
+            return (*this = p.ptr);
+        }
+
+        intrusive_ptr& operator = (intrusive_ptr&& p)
+        {
+            if (ptr) {
+                ptr->release();
+            }
+            ptr = p.ptr;
+            p.ptr = nullptr;
+            return *this;
+        }
+
+        template <class U>
+        intrusive_ptr& operator = (intrusive_ptr<U> const& p)
+        {
+            return (*this = p.ptr);
+        }
+
+        template <class U>
+        intrusive_ptr& operator = (intrusive_ptr<U>&& p)
+        {
+            if (ptr) {
+                ptr->release();
+            }
+            ptr = p.ptr;
+            p.ptr = nullptr;
+            return *this;
+        }
+
+        void swap(pointer_type* pp)
+        {
+            pointer_type p = ptr;
+            ptr = *pp;
+            *pp = p;
+        }
+
+        void swap(intrusive_ptr& p)
+        {
+            swap(&p.ptr);
+        }
+
+    private:
+        pointer_type ptr;
+    };
+
+    template <class T, class U>
+    bool operator == (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b)
+    {
+        return a.get() == b.get();
+    }
+
+    template <class T, class U>
+    bool operator != (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b)
+    {
+        return a.get() != b.get();
+    }
+
+    template <class T, class U>
+    bool operator < (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b)
+    {
+        return a.get() < b.get();
+    }
+
+    template <class T, class U>
+    bool operator <= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b)
+    {
+        return a.get() <= b.get();
+    }
+
+    template <class T, class U>
+    bool operator > (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b)
+    {
+        return a.get() > b.get();
+    }
+
+    template <class T, class U>
+    bool operator >= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b)
+    {
+        return a.get() >= b.get();
+    }
+
+    template <class T>
+    bool operator == (intrusive_ptr<T> const& a, std::nullptr_t)
+    {
+        return a.get() == nullptr;
+    }
+
+    template <class T>
+    bool operator == (std::nullptr_t, intrusive_ptr<T> const& b)
+    {
+        return nullptr == b.get();
+    }
+
+    template <class T>
+    bool operator != (intrusive_ptr<T> const& a, std::nullptr_t)
+    {
+        return a.get() != nullptr;
+    }
+
+    template <class T>
+    bool operator != (std::nullptr_t, intrusive_ptr<T> const& b)
+    {
+        return nullptr != b.get();
+    }
+
+    struct ref_count
+    {
+        unsigned long addref()
+        {
+            return ++count;
+        }
+
+        unsigned long release()
+        {
+            return --count;
+        }
+
+        unsigned long get() const
+        {
+            return count;
+        }
+
+    private:
+        unsigned long count{ 0 };
+    };
+
+    struct ref_count_atomic
+    {
+        unsigned long addref()
+        {
+            return ++count;
+        }
+
+        unsigned long release()
+        {
+            return --count;
+        }
+
+        unsigned long get() const
+        {
+            return count.load();
+        }
+
+    private:
+        std::atomic<unsigned long> count{ 0 };
+    };
+
+    template <class Class, class CountImpl = ref_count_atomic>
+    struct ref_counted
+    {
+        ref_counted() = default;
+
+        ref_counted(ref_counted const&)
+        {
+        }
+
+        ref_counted& operator = (ref_counted const&)
+        {
+            return *this;
+        }
+
+        void addref()
+        {
+            count.addref();
+        }
+
+        void release()
+        {
+            if (count.release() == 0) {
+                delete static_cast<Class*>(this);
+            }
+        }
+
+    protected:
+        ~ref_counted() = default;
+
+    private:
+        CountImpl count{};
+    };
+
+    template <class T>
+    class stable_list
+    {
+        struct link_element : ref_counted<link_element, ref_count>
+        {
+            link_element() = default;
+
+            ~link_element()
+            {
+                if (next) {             // If we have a next element upon destruction
+                    value()->~T();      // then this link is used, else it's a dummy
+                }
+            }
+
+            template <class... Args>
+            void construct(Args&&... args)
+            {
+                new (storage()) T{ std::forward<Args>(args)... };
+            }
+
+            T* value()
+            {
+                return static_cast<T*>(storage());
+            }
+
+            void* storage()
+            {
+                return static_cast<void*>(&buffer);
+            }
+
+            intrusive_ptr<link_element> next;
+            intrusive_ptr<link_element> prev;
+
+            std::aligned_storage_t<sizeof(T), std::alignment_of<T>::value> buffer;
+        };
+
+        intrusive_ptr<link_element> head;
+        intrusive_ptr<link_element> tail;
+
+        std::size_t elements;
+
+    public:
+        template <class U>
+        struct iterator_base : std::iterator<std::bidirectional_iterator_tag, U>
+        {
+            typedef U value_type;
+            typedef U& reference_type;
+            typedef U* pointer_type;
+
+            iterator_base() = default;
+            ~iterator_base() = default;
+
+            iterator_base(iterator_base const& i)
+                : element{ i.element }
+            {
+            }
+
+            iterator_base(iterator_base&& i)
+                : element{ std::move(i.element) }
+            {
+            }
+
+            template <class V>
+            explicit iterator_base(iterator_base<V> const& i)
+                : element{ i.element }
+            {
+            }
+
+            template <class V>
+            explicit iterator_base(iterator_base<V>&& i)
+                : element{ std::move(i.element) }
+            {
+            }
+
+            iterator_base& operator = (iterator_base const& i)
+            {
+                element = i.element;
+                return *this;
+            }
+
+            iterator_base& operator = (iterator_base&& i)
+            {
+                element = std::move(i.element);
+                return *this;
+            }
+
+            template <class V>
+            iterator_base& operator = (iterator_base<V> const& i)
+            {
+                element = i.element;
+                return *this;
+            }
+
+            template <class V>
+            iterator_base& operator = (iterator_base<V>&& i)
+            {
+                element = std::move(i.element);
+                return *this;
+            }
+
+            iterator_base& operator ++ ()
+            {
+                element = element->next;
+                return *this;
+            }
+
+            iterator_base operator ++ (int)
+            {
+                iterator_base i{ *this };
+                ++(*this);
+                return i;
+            }
+
+            iterator_base& operator -- ()
+            {
+                element = element->prev;
+                return *this;
+            }
+
+            iterator_base operator -- (int)
+            {
+                iterator_base i{ *this };
+                --(*this);
+                return i;
+            }
+
+            reference_type operator * () const
+            {
+                return *element->value();
+            }
+
+            pointer_type operator -> () const
+            {
+                return element->value();
+            }
+
+            template <class V>
+            bool operator == (iterator_base<V> const& i) const
+            {
+                return element == i.element;
+            }
+
+            template <class V>
+            bool operator != (iterator_base<V> const& i) const
+            {
+                return element != i.element;
+            }
+
+        private:
+            template <class> friend class stable_list;
+
+            intrusive_ptr<link_element> element;
+
+            iterator_base(intrusive_ptr<link_element> p)
+                : element{ std::move(p) }
+            {
+            }
+        };
+
+        typedef T value_type;
+        typedef T& reference_type;
+        typedef T* pointer_type;
+
+        typedef iterator_base<T> iterator;
+        typedef iterator_base<T const> const_iterator;
+        typedef std::reverse_iterator<iterator> reverse_iterator;
+        typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+        stable_list()
+        {
+            init();
+        }
+
+        ~stable_list()
+        {
+            destroy();
+        }
+
+        stable_list(stable_list const& l)
+        {
+            init();
+            insert(end(), l.begin(), l.end());
+        }
+
+        stable_list(stable_list&& l)
+            : head{ std::move(l.head) }
+            , tail{ std::move(l.tail) }
+            , elements{ l.elements }
+        {
+            l.init();
+        }
+
+        stable_list(std::initializer_list<value_type> l)
+        {
+            init();
+            insert(end(), l.begin(), l.end());
+        }
+
+        template <class Iterator>
+        stable_list(Iterator ibegin, Iterator iend)
+        {
+            init();
+            insert(end(), ibegin, iend);
+        }
+
+        stable_list& operator = (stable_list const& l)
+        {
+            if (this != &l) {
+                clear();
+                insert(end(), l.begin(), l.end());
+            }
+            return *this;
+        }
+
+        stable_list& operator = (stable_list&& l)
+        {
+            destroy();
+            head = std::move(l.head);
+            tail = std::move(l.tail);
+            elements = l.elements;
+            l.init();
+            return *this;
+        }
+
+        iterator begin()
+        {
+            return iterator{ head->next };
+        }
+
+        iterator end()
+        {
+            return iterator{ tail };
+        }
+
+        const_iterator begin() const
+        {
+            return const_iterator{ head->next };
+        }
+
+        const_iterator end() const
+        {
+            return const_iterator{ tail };
+        }
+
+        const_iterator cbegin() const
+        {
+            return const_iterator{ head->next };
+        }
+
+        const_iterator cend() const
+        {
+            return const_iterator{ tail };
+        }
+
+        reverse_iterator rbegin()
+        {
+            return reverse_iterator{ end() };
+        }
+
+        reverse_iterator rend()
+        {
+            return reverse_iterator{ begin() };
+        }
+
+        const_reverse_iterator rbegin() const
+        {
+            return const_reverse_iterator{ cend() };
+        }
+
+        const_reverse_iterator rend() const
+        {
+            return const_reverse_iterator{ cbegin() };
+        }
+
+        const_reverse_iterator crbegin() const
+        {
+            return const_reverse_iterator{ cend() };
+        }
+
+        const_reverse_iterator crend() const
+        {
+            return const_reverse_iterator{ cbegin() };
+        }
+
+        reference_type front()
+        {
+            return *begin();
+        }
+
+        reference_type back()
+        {
+            return *rbegin();
+        }
+
+        value_type const& front() const
+        {
+            return *cbegin();
+        }
+
+        value_type const& back() const
+        {
+            return *crbegin();
+        }
+
+        bool empty() const
+        {
+            return cbegin() == cend();
+        }
+
+        void clear()
+        {
+            erase(begin(), end());
+        }
+
+        void push_front(value_type const& value)
+        {
+            insert(begin(), value);
+        }
+
+        void push_front(value_type&& value)
+        {
+            insert(begin(), std::move(value));
+        }
+
+        void push_back(value_type const& value)
+        {
+            insert(end(), value);
+        }
+
+        void push_back(value_type&& value)
+        {
+            insert(end(), std::move(value));
+        }
+
+        template <class... Args>
+        void emplace_front(Args&&... args)
+        {
+            emplace(begin(), std::forward<Args>(args)...);
+        }
+
+        template <class... Args>
+        void emplace_back(Args&&... args)
+        {
+            emplace(end(), std::forward<Args>(args)...);
+        }
+
+        void pop_front()
+        {
+            head->next = head->next->next;
+            head->next->prev = head;
+            --elements;
+        }
+
+        void pop_back()
+        {
+            tail->prev = tail->prev->prev;
+            tail->prev->next = tail;
+            --elements;
+        }
+
+        iterator insert(iterator const& pos, value_type const& value)
+        {
+            return iterator{ make_link(pos.element, value) };
+        }
+
+        iterator insert(iterator const& pos, value_type&& value)
+        {
+            return iterator{ make_link(pos.element, std::move(value)) };
+        }
+
+        template <class Iterator>
+        void insert(iterator const& pos, Iterator ibegin, Iterator iend)
+        {
+            while (ibegin != iend) {
+                insert(pos, *ibegin++);
+            }
+        }
+
+        template <class... Args>
+        iterator emplace(iterator const& pos, Args&&... args)
+        {
+            return iterator{ make_link(pos.element, std::forward<Args>(args)...) };
+        }
+
+        void append(std::initializer_list<value_type> l)
+        {
+            append(end(), l);
+        }
+
+        void append(iterator const& pos, std::initializer_list<value_type> l)
+        {
+            insert(pos, l.begin(), l.end());
+        }
+
+        iterator erase(iterator const& pos)
+        {
+            pos.element->prev->next = pos.element->next;
+            pos.element->next->prev = pos.element->prev;
+            --elements;
+            return iterator{ pos.element->next };
+        }
+
+        iterator erase(iterator const& first, iterator const& last)
+        {
+            auto link = first.element;
+            while (link != last.element) {
+                auto next = link->next;
+                link->prev = first.element->prev;
+                link->next = last.element;
+                link = std::move(next);
+                --elements;
+            }
+
+            first.element->prev->next = last.element;
+            last.element->prev = first.element->prev;
+            return last;
+        }
+
+        void remove(value_type const& value)
+        {
+            for (auto itr = begin(); itr != end(); ++itr) {
+                if (*itr == value) {
+                    erase(itr);
+                }
+            }
+        }
+
+        template <class Predicate>
+        void remove_if(Predicate const& pred)
+        {
+            for (auto itr = begin(); itr != end(); ++itr) {
+                if (pred(*itr)) {
+                    erase(itr);
+                }
+            }
+        }
+
+        std::size_t size() const
+        {
+            return elements;
+        }
+
+    private:
+        void init()
+        {
+            head = new link_element;
+            tail = new link_element;
+            head->next = tail;
+            tail->prev = head;
+            elements = 0;
+        }
+
+        void destroy()
+        {
+            clear();
+            head->next = nullptr;
+            tail->prev = nullptr;
+        }
+
+        template <class... Args>
+        intrusive_ptr<link_element> make_link(intrusive_ptr<link_element> l, Args&&... args)
+        {
+            intrusive_ptr<link_element> link{ new link_element };
+            link->construct(std::forward<Args>(args)...);
+            link->prev = l->prev;
+            link->next = std::move(l);
+            link->prev->next = link;
+            link->next->prev = link;
+
+            ++elements;
+            return link;
+        }
+    };
+
     namespace detail
     {
         struct connection_base : std::enable_shared_from_this<connection_base>
@@ -507,25 +1281,25 @@ namespace simplesig
 
         inline thread_local_data* get_thread_local_data()
         {
-            static SIMPLESIG_THREAD_LOCAL thread_local_data th;
+            static SIMPLE_THREAD_LOCAL thread_local_data th;
             return &th;
         }
 
         struct connection_scope
         {
-            connection_scope(connection_base* base)
+            connection_scope(connection_base* base, thread_local_data* th)
+                : th{ th }
+                , prev{ th->current_connection }
             {
-                auto th = get_thread_local_data();
-                prev = th->current_connection;
                 th->current_connection = base;
             }
 
             ~connection_scope()
             {
-                auto th = get_thread_local_data();
                 th->current_connection = prev;
             }
 
+            thread_local_data* th;
             connection_base* prev;
         };
     }
@@ -715,17 +1489,11 @@ namespace simplesig
         typedef std::function<signature_type> slot_type;
 
         signal() = default;
-
-        ~signal()
-        {
-            assert(!recursion_lock && "Attempt to destroy a signal while an invocation is active");
-        }
+        ~signal() = default;
 
         signal(signal&& rhs)
+            : connections{ std::move(rhs.connections) }
         {
-            assert(!rhs.recursion_lock && "Attempt to move a signal while an invocation is active");
-
-            connections = std::move(rhs.connections);
         }
 
         signal(signal const& rhs)
@@ -739,9 +1507,6 @@ namespace simplesig
 
         signal& operator = (signal&& rhs)
         {
-            assert(!recursion_lock && !rhs.recursion_lock
-                && "Attempt to assign a signal while an invocation is active");
- 
             connections = std::move(rhs.connections);
             return *this;
         }
@@ -749,8 +1514,6 @@ namespace simplesig
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
-                assert(!recursion_lock && "Attempt to assign a signal while an invocation is active");
-
                 connections.clear();
 
                 for (auto const& conn : rhs.connections) {
@@ -807,32 +1570,21 @@ namespace simplesig
 
         void clear()
         {
-            if (recursion_lock) {
-                for (auto const& conn : connections) {
-                    conn->disconnect();
-                }
-            } else {
-                connections.clear();
-            }
+            connections.clear();
         }
 
         void swap(signal& other)
         {
-            assert(!recursion_lock && !other.recursion_lock
-                && "Attempt to swap a signal while an invocation is active");
-
             connections.swap(other.connections);
         }
 
         template <class ValueSelector = ReturnValueSelector, class T = R>
         std::enable_if_t<std::is_void<T>::value, void> invoke(Args const&... args) const
         {
-            assert(!recursion_lock && "Attempt to invoke a signal recursively");
-
             bool error{ false };
 
             {
-                detail::recursion_guard guard{ recursion_lock };
+                detail::thread_local_data* th{ detail::get_thread_local_data() };
 
                 for (auto itr = std::begin(connections); itr != std::end(connections);) {
                     auto const& conn{ *itr };
@@ -844,7 +1596,7 @@ namespace simplesig
 
                     ++itr;
 
-                    detail::connection_scope scope{ conn.get() };
+                    detail::connection_scope scope{ conn.get(), th };
 
                     try {
                         conn->slot(args...);
@@ -862,15 +1614,13 @@ namespace simplesig
         template <class ValueSelector = ReturnValueSelector, class T = R>
         std::enable_if_t<!std::is_void<T>::value, decltype(ValueSelector{}.result())> invoke(Args const&... args) const
         {
-            assert(!recursion_lock && "Attempt to invoke a signal recursively");
-
             bool error{ false };
 
             ValueSelector selector{};
             selector.hint(connections.size());
 
             {
-                detail::recursion_guard guard{ recursion_lock };
+                detail::thread_local_data* th{ detail::get_thread_local_data() };
 
                 for (auto itr = std::begin(connections); itr != std::end(connections);) {
                     auto const& conn{ *itr };
@@ -882,7 +1632,7 @@ namespace simplesig
 
                     ++itr;
 
-                    detail::connection_scope scope{ conn.get() };
+                    detail::connection_scope scope{ conn.get(), th };
 
                     try {
                         selector(conn->slot(args...));
@@ -908,8 +1658,7 @@ namespace simplesig
         typedef detail::functional_connection<signature_type> connection_base;
         typedef std::shared_ptr<connection_base> connection_ptr;
 
-        mutable std::deque<connection_ptr> connections;
-        mutable bool recursion_lock = false;
+        mutable stable_list<connection_ptr> connections;
     };
 
     template <class Instance, class Class, class R, class... Args>
