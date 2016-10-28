@@ -71,6 +71,20 @@ int main()
         test(1337);
     }
 
+    {
+        // A slot that kills itself after the first call
+        test.connect([](int) {
+            // Get the connection object associated with this slot and kill it
+            simplesig::current_connection().disconnect();
+
+            std::cout << "called!" << std::endl;
+            return 0;
+        });
+
+        test(1337);
+        test(1337);
+    }
+
     std::cin.get();
     return 0;
 }

@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////
 // simplesig - lightweight & fast signal/slots library                             //
 //                                                                                 //
-//   v1.0 - public domain                                                          //
+//   v1.1 - public domain                                                          //
 //   no warranty is offered or implied; use this code at your own risk             //
 //                                                                                 //
 // AUTHORS                                                                         //
@@ -30,6 +30,12 @@
 #include <deque>
 #include <forward_list>
 #include <initializer_list>
+
+// Redefine this if your compiler doesn't support the thread_local keyword
+// For VS < 2015 you can define it to __declspec(thread) for example.
+#ifndef SIMPLESIG_THREAD_LOCAL
+#define SIMPLESIG_THREAD_LOCAL thread_local
+#endif
 
 namespace simplesig
 {
@@ -413,7 +419,7 @@ namespace simplesig
 
     namespace detail
     {
-        struct connection_base
+        struct connection_base : std::enable_shared_from_this<connection_base>
         {
             virtual ~connection_base() = default;
 
@@ -491,6 +497,36 @@ namespace simplesig
         {
             typedef R result_type;
             typedef R signature_type(Args...);
+        };
+
+        // Should make sure that this is POD
+        struct thread_local_data
+        {
+            connection_base* current_connection;
+        };
+
+        inline thread_local_data* get_thread_local_data()
+        {
+            static SIMPLESIG_THREAD_LOCAL thread_local_data th;
+            return &th;
+        }
+
+        struct connection_scope
+        {
+            connection_scope(connection_base* base)
+            {
+                auto th = get_thread_local_data();
+                prev = th->current_connection;
+                th->current_connection = base;
+            }
+
+            ~connection_scope()
+            {
+                auto th = get_thread_local_data();
+                th->current_connection = prev;
+            }
+
+            connection_base* prev;
         };
     }
 
@@ -660,6 +696,12 @@ namespace simplesig
         std::forward_list<scoped_connection> connections;
     };
 
+    inline connection current_connection()
+    {
+        auto base = detail::get_thread_local_data()->current_connection;
+        return base ? connection{ base->shared_from_this() } : connection{};
+    }
+
     template <
         class Signature,
         class ReturnValueSelector = last<optional<
@@ -805,13 +847,15 @@ namespace simplesig
                         continue;
                     }
 
+                    ++itr;
+
+                    detail::connection_scope scope{ conn.get() };
+
                     try {
                         conn->slot(args...);
                     } catch(...) {
                         error = true;
                     }
-
-                    ++itr;
                 }
             }
 
@@ -841,13 +885,15 @@ namespace simplesig
                         continue;
                     }
 
+                    ++itr;
+
+                    detail::connection_scope scope{ conn.get() };
+
                     try {
                         selector(conn->slot(args...));
                     } catch(...) {
                         error = true;
                     }
-
-                    ++itr;
                 }
             }
 
