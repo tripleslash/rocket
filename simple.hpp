@@ -1586,8 +1586,11 @@ namespace simple
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
 
-                for (auto itr = std::begin(connections); itr != std::end(connections);) {
-                    auto const& conn{ *itr };
+                auto itr = std::begin(connections);
+                auto end = std::end(connections);
+
+                while (itr != end) {
+                    auto conn{ itr->get() };
 
                     if (conn->slot == nullptr) {
                         itr = connections.erase(itr);
@@ -1596,7 +1599,7 @@ namespace simple
 
                     ++itr;
 
-                    detail::connection_scope scope{ conn.get(), th };
+                    detail::connection_scope scope{ conn, th };
 
                     try {
                         conn->slot(args...);
@@ -1622,8 +1625,11 @@ namespace simple
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
 
-                for (auto itr = std::begin(connections); itr != std::end(connections);) {
-                    auto const& conn{ *itr };
+                auto itr = std::begin(connections);
+                auto end = std::end(connections);
+
+                while (itr != end) {
+                    auto conn{ itr->get() };
 
                     if (conn->slot == nullptr) {
                         itr = connections.erase(itr);
@@ -1632,7 +1638,7 @@ namespace simple
 
                     ++itr;
 
-                    detail::connection_scope scope{ conn.get(), th };
+                    detail::connection_scope scope{ conn, th };
 
                     try {
                         selector(conn->slot(args...));
