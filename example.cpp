@@ -48,7 +48,7 @@ int main()
             })
         };
 
-        // Give me all results in a vector
+        // Give me all results in a list
         typedef simple::range<int> selector;
 
         std::cout << "Range: ";

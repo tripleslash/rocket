@@ -23,10 +23,9 @@
 #include <exception>
 #include <type_traits>
 #include <cassert>
-#include <memory>
 #include <utility>
 #include <functional>
-#include <vector>
+#include <list>
 #include <forward_list>
 #include <initializer_list>
 #include <atomic>
@@ -54,10 +53,6 @@ namespace simple
             }
         }
 
-        void hint(std::size_t)
-        {
-        }
-
         result_type result()
         {
             return std::move(current);
@@ -81,10 +76,6 @@ namespace simple
                 current = std::forward<U>(value);
                 has_value = true;
             }
-        }
-
-        void hint(std::size_t)
-        {
         }
 
         result_type result()
@@ -112,10 +103,6 @@ namespace simple
             }
         }
 
-        void hint(std::size_t)
-        {
-        }
-
         result_type result()
         {
             return std::move(current);
@@ -138,10 +125,6 @@ namespace simple
             current = std::forward<U>(value);
         }
 
-        void hint(std::size_t)
-        {
-        }
-
         result_type result()
         {
             return std::move(current);
@@ -155,17 +138,12 @@ namespace simple
     struct range
     {
         typedef T value_type;
-        typedef std::vector<T> result_type;
+        typedef std::list<T> result_type;
 
         template <class U>
         void operator () (U&& value)
         {
             values.emplace_back(std::forward<U>(value));
-        }
-
-        void hint(std::size_t size)
-        {
-            values.reserve(size);
         }
 
         result_type result()
@@ -174,7 +152,7 @@ namespace simple
         }
 
     private:
-        std::vector<value_type> values;
+        std::list<value_type> values;
     };
 
     struct error : std::exception
@@ -217,14 +195,14 @@ namespace simple
             engage(std::forward<U>(val));
         }
 
-        optional(optional<T> const& opt)
+        optional(optional const& opt)
         {
             if (opt.engaged()) {
                 engage(*opt.object());
             }
         }
 
-        optional(optional<T>&& opt)
+        optional(optional&& opt)
         {
             if (opt.engaged()) {
                 engage(std::move(*opt.object()));
@@ -250,7 +228,7 @@ namespace simple
         }
 
         template <class U>
-        optional<T>& operator = (U&& rhs)
+        optional& operator = (U&& rhs)
         {
             if (engaged()) {
                 disengage();
@@ -259,7 +237,7 @@ namespace simple
             return *this;
         }
 
-        optional<T>& operator = (optional<T> const& rhs)
+        optional& operator = (optional const& rhs)
         {
             if (this != &rhs) {
                 if (engaged()) {
@@ -273,7 +251,7 @@ namespace simple
         }
 
         template <class U>
-        optional<T>& operator = (optional<U> const& rhs)
+        optional& operator = (optional<U> const& rhs)
         {
             if (this != &rhs) {
                 if (engaged()) {
@@ -286,7 +264,7 @@ namespace simple
             return *this;
         }
 
-        optional<T>& operator = (optional<T>&& rhs)
+        optional& operator = (optional&& rhs)
         {
             if (engaged()) {
                 disengage();
@@ -299,7 +277,7 @@ namespace simple
         }
 
         template <class U>
-        optional<T>& operator = (optional<U>&& rhs)
+        optional& operator = (optional<U>&& rhs)
         {
             if (engaged()) {
                 disengage();
@@ -361,6 +339,15 @@ namespace simple
         value_type value_or(U&& val) const
         {
             return engaged() ? *object() : value_type{ std::forward<U>(val) };
+        }
+
+        void swap(optional& other)
+        {
+            if (this != &other) {
+                auto t{ std::move(*this) };
+                *this = std::move(other);
+                other = std::move(t);
+            }
         }
 
     private:
@@ -684,7 +671,7 @@ namespace simple
         std::atomic<unsigned long> count{ 0 };
     };
 
-    template <class Class, class CountImpl = ref_count_atomic>
+    template <class Class, class RefCount = ref_count>
     struct ref_counted
     {
         ref_counted() = default;
@@ -714,7 +701,7 @@ namespace simple
         ~ref_counted() = default;
 
     private:
-        CountImpl count{};
+        RefCount count{};
     };
 
     template <class T>
@@ -755,8 +742,6 @@ namespace simple
 
         intrusive_ptr<link_element> head;
         intrusive_ptr<link_element> tail;
-
-        std::size_t elements;
 
     public:
         template <class U>
@@ -904,7 +889,6 @@ namespace simple
         stable_list(stable_list&& l)
             : head{ std::move(l.head) }
             , tail{ std::move(l.tail) }
-            , elements{ l.elements }
         {
             l.init();
         }
@@ -936,7 +920,6 @@ namespace simple
             destroy();
             head = std::move(l.head);
             tail = std::move(l.tail);
-            elements = l.elements;
             l.init();
             return *this;
         }
@@ -1067,14 +1050,12 @@ namespace simple
         {
             head->next = head->next->next;
             head->next->prev = head;
-            --elements;
         }
 
         void pop_back()
         {
             tail->prev = tail->prev->prev;
             tail->prev->next = tail;
-            --elements;
         }
 
         iterator insert(iterator const& pos, value_type const& value)
@@ -1115,7 +1096,6 @@ namespace simple
         {
             pos.element->prev->next = pos.element->next;
             pos.element->next->prev = pos.element->prev;
-            --elements;
             return iterator{ pos.element->next };
         }
 
@@ -1127,7 +1107,6 @@ namespace simple
                 link->prev = first.element->prev;
                 link->next = last.element;
                 link = std::move(next);
-                --elements;
             }
 
             first.element->prev->next = last.element;
@@ -1154,9 +1133,13 @@ namespace simple
             }
         }
 
-        std::size_t size() const
+        void swap(stable_list& other)
         {
-            return elements;
+            if (this != &other) {
+                auto t{ std::move(*this) };
+                *this = std::move(other);
+                other = std::move(t);
+            }
         }
 
     private:
@@ -1166,7 +1149,6 @@ namespace simple
             tail = new link_element;
             head->next = tail;
             tail->prev = head;
-            elements = 0;
         }
 
         void destroy()
@@ -1177,23 +1159,31 @@ namespace simple
         }
 
         template <class... Args>
-        intrusive_ptr<link_element> make_link(intrusive_ptr<link_element> l, Args&&... args)
+        link_element* make_link(link_element* l, Args&&... args)
         {
             intrusive_ptr<link_element> link{ new link_element };
             link->construct(std::forward<Args>(args)...);
             link->prev = l->prev;
-            link->next = std::move(l);
+            link->next = l;
             link->prev->next = link;
             link->next->prev = link;
-
-            ++elements;
             return link;
         }
     };
 
     namespace detail
     {
-        struct connection_base : std::enable_shared_from_this<connection_base>
+        template <class Signature>
+        struct expand_signature;
+
+        template <class R, class... Args>
+        struct expand_signature<R(Args...)>
+        {
+            typedef R result_type;
+            typedef R signature_type(Args...);
+        };
+
+        struct connection_base : ref_counted<connection_base>
         {
             virtual ~connection_base() = default;
 
@@ -1204,36 +1194,6 @@ namespace simple
         template <class T>
         struct functional_connection : connection_base
         {
-            typedef T value_type;
-            typedef std::function<T> slot_type;
-
-            functional_connection(slot_type slot)
-                : slot{ std::move(slot) }
-            {
-            }
-
-            functional_connection(functional_connection&& rhs)
-                : slot{ std::move(rhs.slot) }
-            {
-            }
-
-            functional_connection(functional_connection const& rhs)
-                : slot{ rhs.slot }
-            {
-            }
-
-            functional_connection& operator = (functional_connection&& rhs)
-            {
-                slot = std::move(rhs.slot);
-                return *this;
-            }
-
-            functional_connection& operator = (functional_connection const& rhs)
-            {
-                slot = rhs.slot;
-                return *this;
-            }
-
             bool connected() const override
             {
                 return slot != nullptr;
@@ -1241,36 +1201,18 @@ namespace simple
 
             void disconnect() override
             {
-                slot = nullptr;
+                if (slot != nullptr) {
+                    next->prev = prev;
+                    prev->next = next;
+
+                    slot = nullptr;
+                }
             }
 
-            slot_type slot;
-        };
+            std::function<T> slot;
 
-        struct recursion_guard
-        {
-            recursion_guard(bool& lock)
-                : lock{ lock }
-            {
-                lock = true;
-            }
-
-            ~recursion_guard()
-            {
-                lock = false;
-            }
-
-            bool& lock;
-        };
-
-        template <class Signature>
-        struct expand_signature;
-
-        template <class R, class... Args>
-        struct expand_signature<R(Args...)>
-        {
-            typedef R result_type;
-            typedef R signature_type(Args...);
+            intrusive_ptr<functional_connection> next;
+            intrusive_ptr<functional_connection> prev;
         };
 
         // Should make sure that this is POD
@@ -1319,8 +1261,8 @@ namespace simple
         {
         }
 
-        connection(std::shared_ptr<detail::connection_base> base)
-            : base{ std::move(base) }
+        connection(detail::connection_base* base)
+            : base{ base }
         {
         }
 
@@ -1338,12 +1280,12 @@ namespace simple
 
         bool operator == (connection const& rhs) const
         {
-            return base.lock() == rhs.base.lock();
+            return base == rhs.base;
         }
 
         bool operator != (connection const& rhs) const
         {
-            return base.lock() != rhs.base.lock();
+            return base != rhs.base;
         }
 
         explicit operator bool() const
@@ -1353,22 +1295,28 @@ namespace simple
 
         bool connected() const
         {
-            if (auto locked = base.lock()) {
-                return locked->connected();
-            }
-            return false;
+            return base ? base->connected() : false;
         }
 
         void disconnect()
         {
-            if (auto locked = base.lock()) {
-                locked->disconnect();
+            if (base != nullptr) {
+                base->disconnect();
+                base = nullptr;
             }
-            base.reset();
+        }
+
+        void swap(connection& other)
+        {
+            if (this != &other) {
+                auto t{ std::move(*this) };
+                *this = std::move(other);
+                other = std::move(t);
+            }
         }
 
     private:
-        std::weak_ptr<detail::connection_base> base;
+        intrusive_ptr<detail::connection_base> base;
     };
 
     struct scoped_connection : connection
@@ -1472,8 +1420,7 @@ namespace simple
 
     inline connection current_connection()
     {
-        auto base = detail::get_thread_local_data()->current_connection;
-        return base ? connection{ base->shared_from_this() } : connection{};
+        return connection{ detail::get_thread_local_data()->current_connection };
     }
 
     template <
@@ -1488,55 +1435,54 @@ namespace simple
         typedef R signature_type(Args...);
         typedef std::function<signature_type> slot_type;
 
-        signal() = default;
-        ~signal() = default;
-
-        signal(signal&& rhs)
-            : connections{ std::move(rhs.connections) }
+        signal()
         {
+            init();
         }
 
-        signal(signal const& rhs)
+        ~signal()
         {
-            for (auto const& conn : rhs.connections) {
-                if (conn->connected()) {
-                    connections.emplace_back(std::make_shared<connection_base>(*conn));
-                }
-            }
+            destroy();
+        }
+
+        signal(signal&& s)
+            : head{ std::move(s.head) }
+            , tail{ std::move(s.tail) }
+        {
+            s.init();
+        }
+
+        signal(signal const& s)
+        {
+            init();
+            copy(s);
         }
 
         signal& operator = (signal&& rhs)
         {
-            connections = std::move(rhs.connections);
+            destroy();
+            head = std::move(rhs.head);
+            tail = std::move(rhs.tail);
+            rhs.init();
             return *this;
         }
 
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
-                connections.clear();
-
-                for (auto const& conn : rhs.connections) {
-                    if (conn->connected()) {
-                        connections.emplace_back(std::make_shared<connection_base>(*conn));
-                    }
-                }
+                clear();
+                copy(rhs);
             }
             return *this;
         }
 
         connection connect(slot_type slot, bool first = false)
         {
-            connection_ptr base{ std::make_shared<connection_base>(std::move(slot)) };
-            connection connection{ base };
+            assert(slot != nullptr);
 
-            if (first) {
-                connections.emplace_front(std::move(base));
-            } else {
-                connections.emplace_back(std::move(base));
-            }
-
-            return connection;
+            detail::connection_base* base = make_link(
+                first ? head->next : tail, std::move(slot));
+            return connection{ base };
         }
 
         template <class R1, class... Args1>
@@ -1570,12 +1516,26 @@ namespace simple
 
         void clear()
         {
-            connections.clear();
+            intrusive_ptr<connection_base> current{ head->next };
+            while (current != tail) {
+                intrusive_ptr<connection_base> next{ current->next };
+                current->slot = nullptr;
+                current->next = tail;
+                current->prev = head;
+                current = std::move(next);
+            }
+
+            head->next = tail;
+            tail->prev = head;
         }
 
         void swap(signal& other)
         {
-            connections.swap(other.connections);
+            if (this != &other) {
+                auto t{ std::move(*this) };
+                *this = std::move(other);
+                other = std::move(t);
+            }
         }
 
         template <class ValueSelector = ReturnValueSelector, class T = R>
@@ -1586,26 +1546,19 @@ namespace simple
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
 
-                auto itr = std::begin(connections);
-                auto end = std::end(connections);
+                intrusive_ptr<connection_base> current{ head->next };
+                intrusive_ptr<connection_base> end{ tail };
 
-                while (itr != end) {
-                    auto conn{ itr->get() };
-
-                    if (conn->slot == nullptr) {
-                        itr = connections.erase(itr);
-                        continue;
-                    }
-
-                    ++itr;
-
-                    detail::connection_scope scope{ conn, th };
+                while (current != end) {
+                    detail::connection_scope scope{ current, th };
 
                     try {
-                        conn->slot(args...);
+                        current->slot(args...);
                     } catch(...) {
                         error = true;
                     }
+
+                    current = current->next;
                 }
             }
 
@@ -1620,31 +1573,23 @@ namespace simple
             bool error{ false };
 
             ValueSelector selector{};
-            selector.hint(connections.size());
 
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
 
-                auto itr = std::begin(connections);
-                auto end = std::end(connections);
+                intrusive_ptr<connection_base> current{ head->next };
+                intrusive_ptr<connection_base> end{ tail };
 
-                while (itr != end) {
-                    auto conn{ itr->get() };
-
-                    if (conn->slot == nullptr) {
-                        itr = connections.erase(itr);
-                        continue;
-                    }
-
-                    ++itr;
-
-                    detail::connection_scope scope{ conn, th };
+                while (current != end) {
+                    detail::connection_scope scope{ current, th };
 
                     try {
-                        selector(conn->slot(args...));
+                        selector(current->slot(args...));
                     } catch(...) {
                         error = true;
                     }
+
+                    current = current->next;
                 }
             }
 
@@ -1662,9 +1607,46 @@ namespace simple
 
     private:
         typedef detail::functional_connection<signature_type> connection_base;
-        typedef std::shared_ptr<connection_base> connection_ptr;
 
-        mutable stable_list<connection_ptr> connections;
+        void init()
+        {
+            head = new connection_base;
+            tail = new connection_base;
+            head->next = tail;
+            tail->prev = head;
+        }
+
+        void destroy()
+        {
+            clear();
+            head->next = nullptr;
+            tail->prev = nullptr;
+        }
+
+        void copy(signal const& s)
+        {
+            intrusive_ptr<connection_base> current{ s.head->next };
+            intrusive_ptr<connection_base> end{ s.tail };
+
+            while (current != end) {
+                make_link(tail, current->slot);
+                current = current->next;
+            }
+        }
+
+        connection_base* make_link(connection_base* l, slot_type slot)
+        {
+            intrusive_ptr<connection_base> link{ new connection_base };
+            link->slot = std::move(slot);
+            link->prev = l->prev;
+            link->next = l;
+            link->prev->next = link;
+            link->next->prev = link;
+            return link;
+        }
+
+        intrusive_ptr<connection_base> head;
+        intrusive_ptr<connection_base> tail;
     };
 
     template <class Instance, class Class, class R, class... Args>
