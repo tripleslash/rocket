@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////
 // simple - lightweight & fast signal/slots & utility library                      //
 //                                                                                 //
-//   v1.1 - public domain                                                          //
+//   v1.2 - public domain                                                          //
 //   no warranty is offered or implied; use this code at your own risk             //
 //                                                                                 //
 // AUTHORS                                                                         //
@@ -30,11 +30,14 @@
 #include <initializer_list>
 #include <atomic>
 
-// Redefine this if your compiler doesn't support the thread_local keyword
-// For VS < 2015 you can define it to __declspec(thread) for example.
+/// Redefine this if your compiler doesn't support the thread_local keyword
+/// For VS < 2015 you can define it to __declspec(thread) for example.
 #ifndef SIMPLE_THREAD_LOCAL
 #define SIMPLE_THREAD_LOCAL thread_local
 #endif
+
+/// Define this if you want to disable exceptions.
+//#define SIMPLE_NO_EXCEPTIONS
 
 namespace simple
 {
@@ -155,6 +158,7 @@ namespace simple
         std::list<value_type> values;
     };
 
+#ifndef SIMPLE_NO_EXCEPTIONS
     struct error : std::exception
     {
     };
@@ -174,6 +178,7 @@ namespace simple
             return "simplesig: One of the slots has raised an exception during the signal invocation.";
         }
     };
+#endif
 
     template <class T>
     struct optional
@@ -321,17 +326,21 @@ namespace simple
 
         value_type& value()
         {
+#ifndef SIMPLE_NO_EXCEPTIONS
             if (!engaged()) {
                 throw bad_optional_access{};
             }
+#endif
             return *object();
         }
 
         value_type const& value() const
         {
+#ifndef SIMPLE_NO_EXCEPTIONS
             if (!engaged()) {
                 throw bad_optional_access{};
             }
+#endif
             return *object();
         }
 
@@ -1541,8 +1550,9 @@ namespace simple
         template <class ValueSelector = ReturnValueSelector, class T = R>
         std::enable_if_t<std::is_void<T>::value, void> invoke(Args const&... args) const
         {
+#ifndef SIMPLE_NO_EXCEPTIONS
             bool error{ false };
-
+#endif
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
 
@@ -1552,26 +1562,32 @@ namespace simple
                 while (current != end) {
                     detail::connection_scope scope{ current, th };
 
+#ifndef SIMPLE_NO_EXCEPTIONS
                     try {
+#endif
                         current->slot(args...);
+#ifndef SIMPLE_NO_EXCEPTIONS
                     } catch(...) {
                         error = true;
                     }
-
+#endif
                     current = current->next;
                 }
             }
 
+#ifndef SIMPLE_NO_EXCEPTIONS
             if (error) {
                 throw invocation_slot_error{};
             }
+#endif
         }
 
         template <class ValueSelector = ReturnValueSelector, class T = R>
         std::enable_if_t<!std::is_void<T>::value, decltype(ValueSelector{}.result())> invoke(Args const&... args) const
         {
+#ifndef SIMPLE_NO_EXCEPTIONS
             bool error{ false };
-
+#endif
             ValueSelector selector{};
 
             {
@@ -1583,20 +1599,24 @@ namespace simple
                 while (current != end) {
                     detail::connection_scope scope{ current, th };
 
+#ifndef SIMPLE_NO_EXCEPTIONS
                     try {
+#endif
                         selector(current->slot(args...));
+#ifndef SIMPLE_NO_EXCEPTIONS
                     } catch(...) {
                         error = true;
                     }
-
+#endif
                     current = current->next;
                 }
             }
 
+#ifndef SIMPLE_NO_EXCEPTIONS
             if (error) {
                 throw invocation_slot_error{};
             }
-
+#endif
             return selector.result();
         }
 
