@@ -1211,10 +1211,10 @@ namespace simple
             void disconnect() override
             {
                 if (slot != nullptr) {
+                    slot = nullptr;
+
                     next->prev = prev;
                     prev->next = next;
-
-                    slot = nullptr;
                 }
             }
 
