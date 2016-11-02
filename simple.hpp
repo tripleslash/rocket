@@ -1355,18 +1355,24 @@ namespace simple
 
         scoped_connection& operator = (connection&& rhs)
         {
+            disconnect();
+
             connection::operator=(std::move(rhs));
             return *this;
         }
 
         scoped_connection& operator = (scoped_connection&& rhs)
         {
+            disconnect();
+
             connection::operator=(std::move(rhs));
             return *this;
         }
 
         scoped_connection& operator = (connection const& rhs)
         {
+            disconnect();
+
             connection::operator=(rhs);
             return *this;
         }
