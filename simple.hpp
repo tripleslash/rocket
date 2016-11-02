@@ -1434,6 +1434,22 @@ namespace simple
         std::forward_list<scoped_connection> connections;
     };
 
+    struct trackable
+    {
+        void add_tracked_connection(connection const& conn)
+        {
+            container.append(conn);
+        }
+
+        void disconnect_tracked_connections()
+        {
+            container.disconnect();
+        }
+
+    private:
+        scoped_connection_container container;
+    };
+
     inline connection current_connection()
     {
         return connection{ detail::get_thread_local_data()->current_connection };
@@ -1517,17 +1533,25 @@ namespace simple
         template <class Instance, class Class, class R1, class... Args1>
         connection connect(Instance& object, R1(Class::*method)(Args1...), bool first = false)
         {
-            return connect([&object, method](Args... args) {
-                return R((object.*method)(Args1(args)...));
-            }, first);
+            connection c{
+                connect([&object, method](Args... args) {
+                    return R((object.*method)(Args1(args)...));
+                }, first)
+            };
+            maybe_add_tracked_connection(&object, c);
+            return c;
         }
 
         template <class Instance, class Class, class R1, class... Args1>
         connection connect(Instance* object, R1(Class::*method)(Args1...), bool first = false)
         {
-            return connect([object, method](Args... args) {
-                return R((object->*method)(Args1(args)...));
-            }, first);
+            connection c{
+                connect([object, method](Args... args) {
+                    return R((object->*method)(Args1(args)...));
+                }, first)
+            };
+            maybe_add_tracked_connection(object, c);
+            return c;
         }
 
         connection operator += (slot_type slot)
@@ -1685,6 +1709,19 @@ namespace simple
             link->prev->next = link;
             link->next->prev = link;
             return link;
+        }
+
+        template <class Instance>
+        std::enable_if_t<!std::is_base_of<trackable, Instance>::value, void>
+            maybe_add_tracked_connection(Instance*, connection)
+        {
+        }
+
+        template <class Instance>
+        std::enable_if_t<std::is_base_of<trackable, Instance>::value, void>
+            maybe_add_tracked_connection(Instance* inst, connection conn)
+        {
+            static_cast<trackable*>(inst)->add_tracked_connection(conn);
         }
 
         intrusive_ptr<connection_base> head;
