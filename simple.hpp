@@ -1228,6 +1228,7 @@ namespace simple
         struct thread_local_data
         {
             connection_base* current_connection;
+            bool emission_aborted;
         };
 
         inline thread_local_data* get_thread_local_data()
@@ -1432,6 +1433,11 @@ namespace simple
         return connection{ detail::get_thread_local_data()->current_connection };
     }
 
+    inline void abort_emission()
+    {
+        detail::get_thread_local_data()->emission_aborted = true;
+    }
+
     template <
         class Signature,
         class ReturnValueSelector = last<optional<
@@ -1571,6 +1577,11 @@ namespace simple
                         error = true;
                     }
 #endif
+                    if (th->emission_aborted) {
+                        th->emission_aborted = false;
+                        break;
+                    }
+
                     current = current->next;
                 }
             }
@@ -1608,6 +1619,11 @@ namespace simple
                         error = true;
                     }
 #endif
+                    if (th->emission_aborted) {
+                        th->emission_aborted = false;
+                        break;
+                    }
+
                     current = current->next;
                 }
             }
