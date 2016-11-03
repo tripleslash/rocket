@@ -165,7 +165,7 @@ namespace simple
 
     struct bad_optional_access : error
     {
-        const char* what() const override
+        const char* what() const throw() override
         {
             return "simplesig: Bad optional access. Return value of this signal is probably empty.";
         }
@@ -173,7 +173,7 @@ namespace simple
 
     struct invocation_slot_error : error
     {
-        const char* what() const override
+        const char* what() const throw() override
         {
             return "simplesig: One of the slots has raised an exception during the signal invocation.";
         }
