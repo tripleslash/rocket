@@ -1596,20 +1596,23 @@ namespace simple
                 intrusive_ptr<connection_base> end{ tail };
 
                 while (current != end) {
-                    detail::connection_scope scope{ current, th };
+                    assert(current != nullptr);
 
+                    if (current->slot != nullptr) {
+                        detail::connection_scope scope{ current, th };
 #ifndef SIMPLE_NO_EXCEPTIONS
-                    try {
+                        try {
 #endif
-                        current->slot(args...);
+                            current->slot(args...);
 #ifndef SIMPLE_NO_EXCEPTIONS
-                    } catch(...) {
-                        error = true;
-                    }
+                        } catch (...) {
+                            error = true;
+                        }
 #endif
-                    if (th->emission_aborted) {
-                        th->emission_aborted = false;
-                        break;
+                        if (th->emission_aborted) {
+                            th->emission_aborted = false;
+                            break;
+                        }
                     }
 
                     current = current->next;
@@ -1638,20 +1641,23 @@ namespace simple
                 intrusive_ptr<connection_base> end{ tail };
 
                 while (current != end) {
-                    detail::connection_scope scope{ current, th };
+                    assert(current != nullptr);
 
+                    if (current->slot != nullptr) {
+                        detail::connection_scope scope{ current, th };
 #ifndef SIMPLE_NO_EXCEPTIONS
-                    try {
+                        try {
 #endif
-                        selector(current->slot(args...));
+                            selector(current->slot(args...));
 #ifndef SIMPLE_NO_EXCEPTIONS
-                    } catch(...) {
-                        error = true;
-                    }
+                        } catch (...) {
+                            error = true;
+                        }
 #endif
-                    if (th->emission_aborted) {
-                        th->emission_aborted = false;
-                        break;
+                        if (th->emission_aborted) {
+                            th->emission_aborted = false;
+                            break;
+                        }
                     }
 
                     current = current->next;
