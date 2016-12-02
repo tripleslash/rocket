@@ -401,18 +401,6 @@ namespace simple
         std::aligned_storage_t<sizeof(value_type), std::alignment_of<value_type>::value> buffer;
     };
 
-    template <>
-    struct optional<void> {};
-
-    template <>
-    struct optional<void const> {};
-
-    template <>
-    struct optional<void volatile> {};
-
-    template <>
-    struct optional<void const volatile> {};
-
     template <class T>
     struct intrusive_ptr
     {
@@ -1182,7 +1170,7 @@ namespace simple
 
     namespace detail
     {
-        template <class Signature>
+        template <class>
         struct expand_signature;
 
         template <class R, class... Args>
@@ -1190,6 +1178,29 @@ namespace simple
         {
             typedef R result_type;
             typedef R signature_type(Args...);
+        };
+
+        template <class>
+        struct collector_invocation;
+
+        template <class R, class... Args>
+        struct collector_invocation<R(Args...)>
+        {
+            template <class Collector>
+            void invoke(Collector& collector, std::function<R(Args...)> const& slot, Args const&... args) const
+            {
+                collector(slot(args...));
+            }
+        };
+
+        template <class... Args>
+        struct collector_invocation<void(Args...)>
+        {
+            template <class Collector>
+            void invoke(Collector& collector, std::function<void(Args...)> const& slot, Args const&... args) const
+            {
+                slot(args...); collector();
+            }
         };
 
         struct connection_base : ref_counted<connection_base>
@@ -1460,14 +1471,34 @@ namespace simple
         detail::get_thread_local_data()->emission_aborted = true;
     }
 
-    template <
-        class Signature,
-        class ReturnValueSelector = last<optional<
-            typename detail::expand_signature<Signature>::result_type>>
-    > struct signal;
+    template <class T>
+    struct default_collector : last<optional<T>>
+    {
+    };
 
-    template <class ReturnValueSelector, class R, class... Args>
-    struct signal<R(Args...), ReturnValueSelector>
+    template <>
+    struct default_collector<void>
+    {
+        typedef void value_type;
+        typedef void result_type;
+
+        void operator () ()
+        {
+            /* do nothing for void types */
+        }
+
+        void result()
+        {
+            /* do nothing for void types */
+        }
+    };
+
+    template <class Signature, class Collector = default_collector<
+        typename detail::expand_signature<Signature>::result_type>>
+    struct signal;
+
+    template <class Collector, class R, class... Args>
+    struct signal<R(Args...), Collector> : private detail::collector_invocation<R(Args...)>
     {
         typedef R signature_type(Args...);
         typedef std::function<signature_type> slot_type;
@@ -1583,12 +1614,13 @@ namespace simple
             }
         }
 
-        template <class ValueSelector = ReturnValueSelector, class T = R>
-        std::enable_if_t<std::is_void<T>::value, void> invoke(Args const&... args) const
+        template <class ValueCollector = Collector>
+        auto emit(Args const&... args) const -> decltype(ValueCollector{}.result())
         {
 #ifndef SIMPLE_NO_EXCEPTIONS
             bool error{ false };
 #endif
+            ValueCollector collector{};
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
 
@@ -1603,7 +1635,7 @@ namespace simple
 #ifndef SIMPLE_NO_EXCEPTIONS
                         try {
 #endif
-                            current->slot(args...);
+                            invoke(collector, current->slot, args...);
 #ifndef SIMPLE_NO_EXCEPTIONS
                         } catch (...) {
                             error = true;
@@ -1624,57 +1656,12 @@ namespace simple
                 throw invocation_slot_error{};
             }
 #endif
+            return collector.result();
         }
 
-        template <class ValueSelector = ReturnValueSelector, class T = R>
-        std::enable_if_t<!std::is_void<T>::value, decltype(ValueSelector{}.result())> invoke(Args const&... args) const
+        auto operator () (Args const&... args) const -> decltype(emit<>(args...))
         {
-#ifndef SIMPLE_NO_EXCEPTIONS
-            bool error{ false };
-#endif
-            ValueSelector selector{};
-
-            {
-                detail::thread_local_data* th{ detail::get_thread_local_data() };
-
-                intrusive_ptr<connection_base> current{ head->next };
-                intrusive_ptr<connection_base> end{ tail };
-
-                while (current != end) {
-                    assert(current != nullptr);
-
-                    if (current->slot != nullptr) {
-                        detail::connection_scope scope{ current, th };
-#ifndef SIMPLE_NO_EXCEPTIONS
-                        try {
-#endif
-                            selector(current->slot(args...));
-#ifndef SIMPLE_NO_EXCEPTIONS
-                        } catch (...) {
-                            error = true;
-                        }
-#endif
-                        if (th->emission_aborted) {
-                            th->emission_aborted = false;
-                            break;
-                        }
-                    }
-
-                    current = current->next;
-                }
-            }
-
-#ifndef SIMPLE_NO_EXCEPTIONS
-            if (error) {
-                throw invocation_slot_error{};
-            }
-#endif
-            return selector.result();
-        }
-
-        auto operator () (Args const&... args) const -> decltype(invoke<>(args...))
-        {
-            return invoke<>(args...);
+            return emit<>(args...);
         }
 
     private:

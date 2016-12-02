@@ -2,15 +2,13 @@
 #include "simple.hpp"
 #include <iostream>
 
-struct Testing
+struct Testing : simple::trackable
 {
     int hello(float a)
     {
         std::cout << "Testing: " << a << std::endl;
         return 0;
     }
-
-    simple::scoped_connection_container connections;
 };
 
 int main()
@@ -31,7 +29,7 @@ int main()
         // Give me the minimal value of all slots
         typedef simple::minimum<int> selector;
 
-        std::cout << "Minimum: " << test.invoke<selector>(5) << std::endl;
+        std::cout << "Minimum: " << test.emit<selector>(5) << std::endl;
     }
 
     {
@@ -53,7 +51,7 @@ int main()
 
         std::cout << "Range: ";
 
-        for (int x : test.invoke<selector>(5)) {
+        for (int x : test.emit<selector>(5)) {
             std::cout << x << " ";
         }
         std::cout << std::endl;
@@ -63,10 +61,8 @@ int main()
         // The connections are only connected as long as the testing-object is alive
         Testing testing;
 
-        testing.connections.append({
-            test.connect(testing, &Testing::hello),
-            test.connect(testing, &Testing::hello),
-        });
+        test.connect(testing, &Testing::hello);
+        test.connect(testing, &Testing::hello);
 
         test(1337);
     }
