@@ -1180,29 +1180,6 @@ namespace simple
             typedef R signature_type(Args...);
         };
 
-        template <class>
-        struct collector_invocation;
-
-        template <class R, class... Args>
-        struct collector_invocation<R(Args...)>
-        {
-            template <class Collector>
-            void invoke(Collector& collector, std::function<R(Args...)> const& slot, Args const&... args) const
-            {
-                collector(slot(args...));
-            }
-        };
-
-        template <class... Args>
-        struct collector_invocation<void(Args...)>
-        {
-            template <class Collector>
-            void invoke(Collector& collector, std::function<void(Args...)> const& slot, Args const&... args) const
-            {
-                slot(args...); collector();
-            }
-        };
-
         struct connection_base : ref_counted<connection_base>
         {
             virtual ~connection_base() = default;
@@ -1498,7 +1475,7 @@ namespace simple
     struct signal;
 
     template <class Collector, class R, class... Args>
-    struct signal<R(Args...), Collector> : private detail::collector_invocation<R(Args...)>
+    struct signal<R(Args...), Collector>
     {
         typedef R signature_type(Args...);
         typedef std::function<signature_type> slot_type;
@@ -1659,13 +1636,27 @@ namespace simple
             return collector.result();
         }
 
-        auto operator () (Args const&... args) const -> decltype(emit<>(args...))
+        auto operator () (Args const&... args) const -> decltype(emit(args...))
         {
-            return emit<>(args...);
+            return emit(args...);
         }
 
     private:
         typedef detail::functional_connection<signature_type> connection_base;
+
+        template <class ValueCollector, class T = R>
+        std::enable_if_t<std::is_void<T>::value, void>
+            invoke(ValueCollector& collector, slot_type const& slot, Args const&... args) const
+        {
+            slot(args...); collector();
+        }
+
+        template <class ValueCollector, class T = R>
+        std::enable_if_t<!std::is_void<T>::value, void>
+            invoke(ValueCollector& collector, slot_type const& slot, Args const&... args) const
+        {
+            collector(slot(args...));
+        }
 
         void init()
         {
