@@ -11,8 +11,48 @@ struct Testing : simple::trackable
     }
 };
 
+struct NonDefaultConstructible
+{
+    explicit NonDefaultConstructible(int x)
+        : value{ x }
+    {
+    }
+
+    ~NonDefaultConstructible()
+    {
+        std::cout << "Destructor called for value: " << value << std::endl;
+    }
+
+    NonDefaultConstructible(NonDefaultConstructible&& n)
+        : value{ n.value }
+    {
+        n.value = 0;
+    }
+
+    NonDefaultConstructible& operator = (NonDefaultConstructible&& n)
+    {
+        value = n.value;
+        n.value = 0;
+        return *this;
+    }
+
+private:
+    int value;
+
+    NonDefaultConstructible() = delete;
+
+    NonDefaultConstructible(NonDefaultConstructible const&) = delete;
+    NonDefaultConstructible& operator = (NonDefaultConstructible const&) = delete;
+};
+
 int main()
 {
+    NonDefaultConstructible n{ 1337 };
+    {
+        simple::stable_list<NonDefaultConstructible> list;
+        list.push_back(std::move(n));
+    }
+
     simple::signal<int(int)> test;
 
     test.connect([](int x) {

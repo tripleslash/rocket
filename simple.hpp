@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <cassert>
 #include <utility>
+#include <memory>
 #include <functional>
 #include <list>
 #include <forward_list>
@@ -195,7 +196,7 @@ namespace simple
         }
 
         template <class U>
-        optional(U&& val)
+        explicit optional(U&& val)
         {
             engage(std::forward<U>(val));
         }
@@ -404,21 +405,21 @@ namespace simple
     template <class T>
     struct intrusive_ptr
     {
-        typedef T element_type;
-        typedef T* pointer_type;
-        typedef T& reference_type;
+        typedef T value_type;
+        typedef T* pointer;
+        typedef T& reference;
 
         intrusive_ptr()
             : ptr{ nullptr }
         {
         }
 
-        intrusive_ptr(std::nullptr_t)
+        explicit intrusive_ptr(std::nullptr_t)
             : ptr{ nullptr }
         {
         }
 
-        intrusive_ptr(pointer_type p)
+        explicit intrusive_ptr(pointer p)
             : ptr{ p }
         {
             if (ptr) {
@@ -463,45 +464,45 @@ namespace simple
             }
         }
 
-        pointer_type get() const
+        pointer get() const
         {
             return ptr;
         }
 
-        operator pointer_type() const
+        operator pointer() const
         {
             return ptr;
         }
 
-        pointer_type operator -> () const
+        pointer operator -> () const
         {
             assert(ptr != nullptr);
             return ptr;
         }
 
-        reference_type operator * () const
+        reference operator * () const
         {
             assert(ptr != nullptr);
             return *ptr;
         }
 
-        pointer_type* operator & ()
+        pointer* operator & ()
         {
             assert(ptr == nullptr);
             return &ptr;
         }
 
-        pointer_type const* operator & () const
+        pointer const* operator & () const
         {
             return &ptr;
         }
 
-        intrusive_ptr& operator = (pointer_type p)
+        intrusive_ptr& operator = (pointer p)
         {
             if (p) {
                 p->addref();
             }
-            pointer_type o = ptr;
+            pointer o = ptr;
             ptr = p;
             if (o) {
                 o->release();
@@ -550,9 +551,9 @@ namespace simple
             return *this;
         }
 
-        void swap(pointer_type* pp)
+        void swap(pointer* pp)
         {
-            pointer_type p = ptr;
+            pointer p = ptr;
             ptr = *pp;
             *pp = p;
         }
@@ -563,7 +564,7 @@ namespace simple
         }
 
     private:
-        pointer_type ptr;
+        pointer ptr;
     };
 
     template <class T, class U>
@@ -704,7 +705,7 @@ namespace simple
     template <class T>
     class stable_list
     {
-        struct link_element : ref_counted<link_element, ref_count>
+        struct link_element : ref_counted<link_element>
         {
             link_element() = default;
 
@@ -745,8 +746,8 @@ namespace simple
         struct iterator_base : std::iterator<std::bidirectional_iterator_tag, U>
         {
             typedef U value_type;
-            typedef U& reference_type;
-            typedef U* pointer_type;
+            typedef U& reference;
+            typedef U* pointer;
 
             iterator_base() = default;
             ~iterator_base() = default;
@@ -825,12 +826,12 @@ namespace simple
                 return i;
             }
 
-            reference_type operator * () const
+            reference operator * () const
             {
                 return *element->value();
             }
 
-            pointer_type operator -> () const
+            pointer operator -> () const
             {
                 return element->value();
             }
@@ -852,15 +853,15 @@ namespace simple
 
             intrusive_ptr<link_element> element;
 
-            iterator_base(intrusive_ptr<link_element> p)
-                : element{ std::move(p) }
+            explicit iterator_base(link_element* p)
+                : element{ p }
             {
             }
         };
 
         typedef T value_type;
-        typedef T& reference_type;
-        typedef T* pointer_type;
+        typedef T& reference;
+        typedef T* pointer;
 
         typedef iterator_base<T> iterator;
         typedef iterator_base<T const> const_iterator;
@@ -981,12 +982,12 @@ namespace simple
             return const_reverse_iterator{ cbegin() };
         }
 
-        reference_type front()
+        reference front()
         {
             return *begin();
         }
 
-        reference_type back()
+        reference back()
         {
             return *rbegin();
         }
@@ -1259,7 +1260,7 @@ namespace simple
         {
         }
 
-        connection(detail::connection_base* base)
+        explicit connection(detail::connection_base* base)
             : base{ base }
         {
         }
@@ -1326,12 +1327,12 @@ namespace simple
             disconnect();
         }
 
-        scoped_connection(connection const& rhs)
+        explicit scoped_connection(connection const& rhs)
             : connection{ rhs }
         {
         }
 
-        scoped_connection(connection&& rhs)
+        explicit scoped_connection(connection&& rhs)
             : connection{ std::move(rhs) }
         {
         }
