@@ -853,7 +853,7 @@ namespace simple
 
             intrusive_ptr<link_element> element;
 
-            explicit iterator_base(link_element* p)
+            iterator_base(link_element* p)
                 : element{ p }
             {
             }
@@ -1243,6 +1243,24 @@ namespace simple
             thread_local_data* th;
             connection_base* prev;
         };
+
+        struct abort_scope
+        {
+            abort_scope(thread_local_data* th)
+                : th{ th }
+                , prev{ th->emission_aborted }
+            {
+                th->emission_aborted = false;
+            }
+
+            ~abort_scope()
+            {
+                th->emission_aborted = prev;
+            }
+
+            thread_local_data* th;
+            bool prev;
+        };
     }
 
     struct connection
@@ -1601,6 +1619,7 @@ namespace simple
             ValueCollector collector{};
             {
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
+                detail::abort_scope ascope{ th };
 
                 intrusive_ptr<connection_base> current{ head->next };
                 intrusive_ptr<connection_base> end{ tail };
@@ -1609,7 +1628,7 @@ namespace simple
                     assert(current != nullptr);
 
                     if (current->slot != nullptr) {
-                        detail::connection_scope scope{ current, th };
+                        detail::connection_scope cscope{ current, th };
 #ifndef SIMPLE_NO_EXCEPTIONS
                         try {
 #endif
@@ -1620,7 +1639,6 @@ namespace simple
                         }
 #endif
                         if (th->emission_aborted) {
-                            th->emission_aborted = false;
                             break;
                         }
                     }

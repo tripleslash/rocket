@@ -52,6 +52,15 @@ int main()
         simple::stable_list<NonDefaultConstructible> list;
         list.push_back(std::move(n));
     }
+    {
+        simple::stable_list<int> list1{ 1, 2, 3, 4, 5 };
+        simple::stable_list<int> list2{ list1.crbegin(), list1.crend() };
+
+        for (auto elem : list2)
+            std::cout << elem << ' ';
+
+        std::cout << std::endl;
+    }
 
     simple::signal<int(int)> test;
 
@@ -113,11 +122,28 @@ int main()
             // Get the connection object associated with this slot and kill it
             simple::current_connection().disconnect();
 
-            std::cout << "called!" << std::endl;
+            std::cout << "called slot disconnect!" << std::endl;
             return 0;
         });
 
         test(1337);
+        test(1337);
+    }
+
+    {
+        // A slot that aborts emission after the first call
+        test.connect([](int) {
+            simple::abort_emission();
+
+            std::cout << "called abort!" << std::endl;
+            return 0;
+        });
+
+        test.connect([](int) {
+            std::cout << "This should never show up, as the previous slot aborts the emission!" << std::endl;
+            return 0;
+        });
+
         test(1337);
     }
 
