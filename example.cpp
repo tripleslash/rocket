@@ -78,7 +78,7 @@ int main()
         // Give me the minimal value of all slots
         typedef simple::minimum<int> selector;
 
-        std::cout << "Minimum: " << test.emit<selector>(5) << std::endl;
+        std::cout << "Minimum: " << test.invoke<selector>(5) << std::endl;
     }
 
     {
@@ -100,7 +100,7 @@ int main()
 
         std::cout << "Range: ";
 
-        for (int x : test.emit<selector>(5)) {
+        for (int x : test.invoke<selector>(5)) {
             std::cout << x << " ";
         }
         std::cout << std::endl;

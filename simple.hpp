@@ -1611,7 +1611,7 @@ namespace simple
         }
 
         template <class ValueCollector = Collector>
-        auto emit(Args const&... args) const -> decltype(ValueCollector{}.result())
+        auto invoke(Args const&... args) const -> decltype(ValueCollector{}.result())
         {
 #ifndef SIMPLE_NO_EXCEPTIONS
             bool error{ false };
@@ -1655,9 +1655,9 @@ namespace simple
             return collector.result();
         }
 
-        auto operator () (Args const&... args) const -> decltype(emit(args...))
+        auto operator () (Args const&... args) const -> decltype(invoke(args...))
         {
-            return emit(args...);
+            return invoke(args...);
         }
 
     private:
