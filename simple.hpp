@@ -30,6 +30,7 @@
 #include <forward_list>
 #include <initializer_list>
 #include <atomic>
+#include <limits>
 
 /// Redefine this if your compiler doesn't support the thread_local keyword
 /// For VS < 2015 you can define it to __declspec(thread) for example.
@@ -741,6 +742,8 @@ namespace simple
         intrusive_ptr<link_element> head;
         intrusive_ptr<link_element> tail;
 
+        std::size_t elements;
+
     public:
         template <class U>
         struct iterator_base : std::iterator<std::bidirectional_iterator_tag, U>
@@ -862,6 +865,10 @@ namespace simple
         typedef T value_type;
         typedef T& reference;
         typedef T* pointer;
+        typedef const T* const_pointer;
+
+        typedef std::size_t size_type;
+        typedef std::ptrdiff_t difference_type;
 
         typedef iterator_base<T> iterator;
         typedef iterator_base<T const> const_iterator;
@@ -887,6 +894,7 @@ namespace simple
         stable_list(stable_list&& l)
             : head{ std::move(l.head) }
             , tail{ std::move(l.tail) }
+            , elements{ l.elements }
         {
             l.init();
         }
@@ -904,6 +912,18 @@ namespace simple
             insert(end(), ibegin, iend);
         }
 
+        explicit stable_list(size_type count, value_type const& value)
+        {
+            init();
+            insert(end(), count, value);
+        }
+
+        explicit stable_list(size_type count)
+        {
+            init();
+            insert(end(), count, value_type{});
+        }
+
         stable_list& operator = (stable_list const& l)
         {
             if (this != &l) {
@@ -918,6 +938,7 @@ namespace simple
             destroy();
             head = std::move(l.head);
             tail = std::move(l.tail);
+            elements = l.elements;
             l.init();
             return *this;
         }
@@ -1033,27 +1054,29 @@ namespace simple
         }
 
         template <class... Args>
-        void emplace_front(Args&&... args)
+        reference emplace_front(Args&&... args)
         {
-            emplace(begin(), std::forward<Args>(args)...);
+            return *emplace(begin(), std::forward<Args>(args)...);
         }
 
         template <class... Args>
-        void emplace_back(Args&&... args)
+        reference emplace_back(Args&&... args)
         {
-            emplace(end(), std::forward<Args>(args)...);
+            return *emplace(end(), std::forward<Args>(args)...);
         }
 
         void pop_front()
         {
             head->next = head->next->next;
             head->next->prev = head;
+            --elements;
         }
 
         void pop_back()
         {
             tail->prev = tail->prev->prev;
             tail->prev->next = tail;
+            --elements;
         }
 
         iterator insert(iterator const& pos, value_type const& value)
@@ -1067,11 +1090,33 @@ namespace simple
         }
 
         template <class Iterator>
-        void insert(iterator const& pos, Iterator ibegin, Iterator iend)
+        iterator insert(iterator const& pos, Iterator ibegin, Iterator iend)
         {
+            iterator iter{ end() };
             while (ibegin != iend) {
-                insert(pos, *ibegin++);
+                iterator tmp{ insert(pos, *ibegin++) };
+                if (iter == end()) {
+                    iter = std::move(tmp);
+                }
             }
+            return iter;
+        }
+
+        iterator insert(iterator const& pos, std::initializer_list<value_type> l)
+        {
+            return insert(pos, l.begin(), l.end());
+        }
+
+        iterator insert(iterator const& pos, size_type count, value_type const& value)
+        {
+            iterator iter{ end() };
+            for (size_type i = 0; i < count; ++i) {
+                iterator tmp{ insert(pos, value) };
+                if (iter == end()) {
+                    iter = std::move(tmp);
+                }
+            }
+            return iter;
         }
 
         template <class... Args>
@@ -1080,20 +1125,85 @@ namespace simple
             return iterator{ make_link(pos.element, std::forward<Args>(args)...) };
         }
 
-        void append(std::initializer_list<value_type> l)
+        void append(value_type const& value)
         {
-            append(end(), l);
+            insert(end(), value);
         }
 
-        void append(iterator const& pos, std::initializer_list<value_type> l)
+        void append(value_type&& value)
         {
-            insert(pos, l.begin(), l.end());
+            insert(end(), std::move(value));
+        }
+
+        template <class Iterator>
+        void append(Iterator ibegin, Iterator iend)
+        {
+            insert(end(), ibegin, iend);
+        }
+
+        void append(std::initializer_list<value_type> l)
+        {
+            insert(end(), std::move(l));
+        }
+
+        void append(size_type count, value_type const& value)
+        {
+            insert(end(), count, value);
+        }
+
+        void assign(size_type count, value_type const& value)
+        {
+            clear();
+            append(count, value);
+        }
+
+        template <class Iterator>
+        void assign(Iterator ibegin, Iterator iend)
+        {
+            clear();
+            append(ibegin, iend);
+        }
+
+        void assign(std::initializer_list<value_type> l)
+        {
+            clear();
+            append(std::move(l));
+        }
+
+        void resize(size_type count)
+        {
+            resize(count, value_type{});
+        }
+
+        void resize(size_type count, value_type const& value)
+        {
+            size_type cursize = size();
+            if (count > cursize) {
+                for (size_type i = cursize; i < count; ++i) {
+                    push_back(value);
+                }
+            } else {
+                for (size_type i = count; i < cursize; ++i) {
+                    pop_back();
+                }
+            }
+        }
+
+        size_type size() const
+        {
+            return elements;
+        }
+
+        size_type max_size() const
+        {
+            return std::numeric_limits<size_type>::max();
         }
 
         iterator erase(iterator const& pos)
         {
             pos.element->prev->next = pos.element->next;
             pos.element->next->prev = pos.element->prev;
+            --elements;
             return iterator{ pos.element->next };
         }
 
@@ -1104,6 +1214,7 @@ namespace simple
                 auto next = link->next;
                 link->prev = first.element->prev;
                 link->next = last.element;
+                --elements;
                 link = std::move(next);
             }
 
@@ -1147,6 +1258,7 @@ namespace simple
             tail = new link_element;
             head->next = tail;
             tail->prev = head;
+            elements = 0;
         }
 
         void destroy()
@@ -1165,6 +1277,7 @@ namespace simple
             link->next = l;
             link->prev->next = link;
             link->next->prev = link;
+            ++elements;
             return link;
         }
     };
