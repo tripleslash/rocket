@@ -1388,7 +1388,7 @@ namespace simple
             {
                 if (auto strong = weak.lock()) {
                     return simple::optional<R>{
-                        (static_cast<Class1*>(strong.get())->*method)(std::forward<Args>(args)...)
+                        (strong.get()->*method)(std::forward<Args>(args)...)
                     };
                 }
                 return simple::optional<R>{};
