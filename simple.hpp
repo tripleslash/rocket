@@ -169,7 +169,7 @@ namespace simple
     {
         const char* what() const throw() override
         {
-            return "simplesig: Bad optional access. Return value of this signal is probably empty.";
+            return "simplesig: Bad optional access.";
         }
     };
 
@@ -1375,10 +1375,10 @@ namespace simple
             bool prev;
         };
 
-        template <class Class0, class Class1, class R, class... Args>
+        template <class Instance, class Class, class R, class... Args>
         struct weak_mem_fn
         {
-            explicit weak_mem_fn(std::shared_ptr<Class0> c, R(Class1::*method)(Args...))
+            explicit weak_mem_fn(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
                 : weak{ std::move(c) }
                 , method{ method }
             {
@@ -1404,16 +1404,49 @@ namespace simple
             }
 
         private:
-            std::weak_ptr<Class0> weak;
-            R(Class1::*method)(Args...) = nullptr;
+            std::weak_ptr<Instance> weak;
+            R(Class::*method)(Args...);
+        };
+
+        template <class Instance, class Class, class R, class... Args>
+        struct shared_mem_fn
+        {
+            explicit shared_mem_fn(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
+                : shared{ std::move(c) }
+                , method{ method }
+            {
+            }
+
+            R operator () (Args&&... args) const
+            {
+                return (shared.get()->*method)(std::forward<Args>(args)...);
+            }
+
+        private:
+            std::shared_ptr<Instance> shared;
+            R(Class::*method)(Args...);
         };
     }
 
-    template <class Class0, class Class1, class R, class... Args>
-    auto bind_weak_ptr(std::shared_ptr<Class0> c, R(Class1::*method)(Args...))
-        -> detail::weak_mem_fn<Class0, Class1, R, Args...>
+    template <class Instance, class Class, class R, class... Args>
+    auto bind_weak_ptr(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
+        -> detail::weak_mem_fn<Instance, Class, R, Args...>
     {
-        return detail::weak_mem_fn<Class0, Class1, R, Args...>{ std::move(c), method };
+        return detail::weak_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
+    }
+
+    template <class Instance, class Class, class R, class... Args>
+    auto bind_weak_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
+        -> detail::weak_mem_fn<Instance, Class, R, Args...>
+    {
+        return detail::weak_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
+    }
+
+    template <class Instance, class Class, class R, class... Args>
+    auto bind_shared_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
+        -> detail::shared_mem_fn<Instance, Class, R, Args...>
+    {
+        return detail::shared_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
 
     struct connection

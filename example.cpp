@@ -55,11 +55,6 @@ struct TestShared : std::enable_shared_from_this<TestShared>
 
 int main()
 {
-    auto classPtr = std::make_shared<TestShared>();
-    auto callback = simple::bind_weak_ptr(classPtr, &TestShared::hello);
-
-    *callback(3);
-
     NonDefaultConstructible n{ 1337 };
     {
         simple::stable_list<NonDefaultConstructible> list;
@@ -130,6 +125,12 @@ int main()
         test.connect(testing, &Testing::hello);
 
         test(1337);
+    }
+
+    {
+        auto classPtr = std::make_shared<TestShared>();
+        auto f = simple::bind_weak_ptr(classPtr, &TestShared::hello);
+        f(2);
     }
 
     {
