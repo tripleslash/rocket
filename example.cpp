@@ -55,9 +55,10 @@ struct TestShared : std::enable_shared_from_this<TestShared>
 
 int main()
 {
-    auto cl{ std::make_shared<TestShared>() };
-    auto fn{ simple::make_weak_mem_fn(cl, &TestShared::hello) };
-    std::cout << *fn(3) << std::endl;
+    auto classPtr = std::make_shared<TestShared>();
+    auto callback = simple::bind_weak_ptr(classPtr, &TestShared::hello);
+
+    *callback(3);
 
     NonDefaultConstructible n{ 1337 };
     {

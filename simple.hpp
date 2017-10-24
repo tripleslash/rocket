@@ -1384,14 +1384,23 @@ namespace simple
             {
             }
 
-            simple::optional<R> operator () (Args&&... args) const
+            template <class T = R>
+            std::enable_if_t<std::is_void<T>::value, void> operator () (Args&&... args) const
             {
                 if (auto strong = weak.lock()) {
-                    return simple::optional<R>{
+                    (strong.get()->*method)(std::forward<Args>(args)...);
+                }
+            }
+
+            template <class T = R>
+            std::enable_if_t<!std::is_void<T>::value, optional<T>> operator () (Args&&... args) const
+            {
+                if (auto strong = weak.lock()) {
+                    return optional<T>{
                         (strong.get()->*method)(std::forward<Args>(args)...)
                     };
                 }
-                return simple::optional<R>{};
+                return optional<T>{};
             }
 
         private:
@@ -1401,7 +1410,7 @@ namespace simple
     }
 
     template <class Class0, class Class1, class R, class... Args>
-    auto make_weak_mem_fn(std::shared_ptr<Class0> c, R(Class1::*method)(Args...))
+    auto bind_weak_ptr(std::shared_ptr<Class0> c, R(Class1::*method)(Args...))
         -> detail::weak_mem_fn<Class0, Class1, R, Args...>
     {
         return detail::weak_mem_fn<Class0, Class1, R, Args...>{ std::move(c), method };
