@@ -1374,6 +1374,37 @@ namespace simple
             thread_local_data* th;
             bool prev;
         };
+
+        template <class Class0, class Class1, class R, class... Args>
+        struct weak_mem_fn
+        {
+            explicit weak_mem_fn(std::shared_ptr<Class0> c, R(Class1::*method)(Args...))
+                : weak{ std::move(c) }
+                , method{ method }
+            {
+            }
+
+            simple::optional<R> operator () (Args&&... args) const
+            {
+                if (auto strong = weak.lock()) {
+                    return simple::optional<R>{
+                        (static_cast<Class1*>(strong.get())->*method)(std::forward<Args>(args)...)
+                    };
+                }
+                return simple::optional<R>{};
+            }
+
+        private:
+            std::weak_ptr<Class0> weak;
+            R(Class1::*method)(Args...) = nullptr;
+        };
+    }
+
+    template <class Class0, class Class1, class R, class... Args>
+    auto make_weak_mem_fn(std::shared_ptr<Class0> c, R(Class1::*method)(Args...))
+        -> detail::weak_mem_fn<Class0, Class1, R, Args...>
+    {
+        return detail::weak_mem_fn<Class0, Class1, R, Args...>{ std::move(c), method };
     }
 
     struct connection

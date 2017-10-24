@@ -45,8 +45,20 @@ private:
     NonDefaultConstructible& operator = (NonDefaultConstructible const&) = delete;
 };
 
+struct TestShared : std::enable_shared_from_this<TestShared>
+{
+    int hello(int a)
+    {
+        return 321;
+    }
+};
+
 int main()
 {
+    auto cl{ std::make_shared<TestShared>() };
+    auto fn{ simple::make_weak_mem_fn(cl, &TestShared::hello) };
+    std::cout << *fn(3) << std::endl;
+
     NonDefaultConstructible n{ 1337 };
     {
         simple::stable_list<NonDefaultConstructible> list;
@@ -55,6 +67,9 @@ int main()
     {
         simple::stable_list<int> list1{ 1, 2, 3, 4, 5 };
         simple::stable_list<int> list2{ list1.crbegin(), list1.crend() };
+
+        list2.resize(3);
+        std::cout << "List size: " << list2.size() << std::endl;
 
         for (auto elem : list2)
             std::cout << elem << ' ';
