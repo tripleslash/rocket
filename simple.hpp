@@ -1384,20 +1384,20 @@ namespace simple
             {
             }
 
-            template <class T = R>
-            std::enable_if_t<std::is_void<T>::value, void> operator () (Args&&... args) const
+            template <class T = R, class... Args1>
+            std::enable_if_t<std::is_void<T>::value, void> operator () (Args1&&... args) const
             {
                 if (auto strong = weak.lock()) {
-                    (strong.get()->*method)(std::forward<Args>(args)...);
+                    (strong.get()->*method)(std::forward<Args1>(args)...);
                 }
             }
 
-            template <class T = R>
-            std::enable_if_t<!std::is_void<T>::value, optional<T>> operator () (Args&&... args) const
+            template <class T = R, class... Args1>
+            std::enable_if_t<!std::is_void<T>::value, optional<T>> operator () (Args1&&... args) const
             {
                 if (auto strong = weak.lock()) {
                     return optional<T>{
-                        (strong.get()->*method)(std::forward<Args>(args)...)
+                        (strong.get()->*method)(std::forward<Args1>(args)...)
                     };
                 }
                 return optional<T>{};
@@ -1417,9 +1417,10 @@ namespace simple
             {
             }
 
-            R operator () (Args&&... args) const
+            template <class... Args1>
+            R operator () (Args1&&... args) const
             {
-                return (shared.get()->*method)(std::forward<Args>(args)...);
+                return (shared.get()->*method)(std::forward<Args1>(args)...);
             }
 
         private:
