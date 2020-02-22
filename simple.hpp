@@ -32,18 +32,23 @@
 #include <atomic>
 #include <limits>
 
+/// Define this if your compiler doesn't support std::optional
+// #define SIMPLE_NO_STD_OPTIONAL
+
+/// Define this if you want to disable exceptions.
+// #define SIMPLE_NO_EXCEPTIONS
+
 /// Redefine this if your compiler doesn't support the thread_local keyword
 /// For VS < 2015 you can define it to __declspec(thread) for example.
-#ifndef SIMPLE_THREAD_LOCAL
 #define SIMPLE_THREAD_LOCAL thread_local
-#endif
 
 /// Redefine this if your compiler doesn't support the noexcept keyword
 /// For VS < 2015 you can define it to throw() for example.
 #define SIMPLE_NOEXCEPT noexcept
 
-/// Define this if you want to disable exceptions.
-//#define SIMPLE_NO_EXCEPTIONS
+#ifndef SIMPLE_NO_STD_OPTIONAL
+#   include <optional>
+#endif
 
 namespace simple
 {
@@ -186,6 +191,7 @@ namespace simple
     };
 #endif
 
+#ifdef SIMPLE_NO_STD_OPTIONAL
     template <class T>
     struct optional
     {
@@ -200,10 +206,10 @@ namespace simple
             }
         }
 
-        template <class U>
-        explicit optional(U&& val)
+        template <class... Args>
+        explicit optional(Args&&... args)
         {
-            engage(std::forward<U>(val));
+            engage(std::forward<Args>(args)...);
         }
 
         optional(optional const& opt)
@@ -300,7 +306,28 @@ namespace simple
             return *this;
         }
 
+        void reset() SIMPLE_NOEXCEPT
+        {
+            if (engaged()) {
+                disengage();
+            }
+        }
+
+        template <class... Args>
+        value_type& emplace(Args&&... args) {
+            if (engaged()) {
+                disengage();
+            }
+            engage(std::forward<Args>(args)...);
+            return value();
+        }
+
         bool engaged() const SIMPLE_NOEXCEPT
+        {
+            return initialized;
+        }
+
+        bool has_value() const SIMPLE_NOEXCEPT
         {
             return initialized;
         }
@@ -388,11 +415,11 @@ namespace simple
             return static_cast<value_type const*>(storage());
         }
 
-        template <class U>
-        void engage(U&& val)
+        template <class... Args>
+        void engage(Args&&... args)
         {
             assert(initialized == false);
-            new (storage()) value_type{ std::forward<U>(val) };
+            new (storage()) value_type{ std::forward<Args>(args)... };
             initialized = true;
         }
 
@@ -406,6 +433,9 @@ namespace simple
         bool initialized = false;
         std::aligned_storage_t<sizeof(value_type), std::alignment_of<value_type>::value> buffer;
     };
+#else
+    template <class T> using optional = std::optional<T>;
+#endif
 
     template <class T>
     struct intrusive_ptr
