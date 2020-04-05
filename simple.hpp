@@ -314,7 +314,8 @@ namespace simple
         }
 
         template <class... Args>
-        value_type& emplace(Args&&... args) {
+        value_type& emplace(Args&&... args)
+        {
             if (engaged()) {
                 disengage();
             }
@@ -441,8 +442,11 @@ namespace simple
     struct intrusive_ptr
     {
         using value_type = T;
+        using element_type = T;
         using pointer = T*;
         using reference = T&;
+
+        template <class U> friend struct intrusive_ptr;
 
         intrusive_ptr() SIMPLE_NOEXCEPT
             : ptr{ nullptr }
@@ -502,6 +506,13 @@ namespace simple
         pointer get() const SIMPLE_NOEXCEPT
         {
             return ptr;
+        }
+
+        pointer detach() SIMPLE_NOEXCEPT
+        {
+            pointer p = ptr;
+            ptr = nullptr;
+            return p;
         }
 
         operator pointer() const SIMPLE_NOEXCEPT
@@ -609,9 +620,33 @@ namespace simple
     }
 
     template <class T, class U>
+    bool operator == (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    {
+        return a.get() == b;
+    }
+
+    template <class T, class U>
+    bool operator == (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    {
+        return a == b.get();
+    }
+
+    template <class T, class U>
     bool operator != (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
     {
         return a.get() != b.get();
+    }
+
+    template <class T, class U>
+    bool operator != (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    {
+        return a.get() != b;
+    }
+
+    template <class T, class U>
+    bool operator != (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    {
+        return a != b.get();
     }
 
     template <class T, class U>
@@ -621,9 +656,33 @@ namespace simple
     }
 
     template <class T, class U>
+    bool operator < (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    {
+        return a.get() < b;
+    }
+
+    template <class T, class U>
+    bool operator < (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    {
+        return a < b.get();
+    }
+
+    template <class T, class U>
     bool operator <= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
     {
         return a.get() <= b.get();
+    }
+
+    template <class T, class U>
+    bool operator <= (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    {
+        return a.get() <= b;
+    }
+
+    template <class T, class U>
+    bool operator <= (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    {
+        return a <= b.get();
     }
 
     template <class T, class U>
@@ -633,9 +692,33 @@ namespace simple
     }
 
     template <class T, class U>
+    bool operator > (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    {
+        return a.get() > b;
+    }
+
+    template <class T, class U>
+    bool operator > (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    {
+        return a > b.get();
+    }
+
+    template <class T, class U>
     bool operator >= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
     {
         return a.get() >= b.get();
+    }
+
+    template <class T, class U>
+    bool operator >= (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    {
+        return a.get() >= b;
+    }
+
+    template <class T, class U>
+    bool operator >= (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    {
+        return a >= b.get();
     }
 
     template <class T>
@@ -660,6 +743,30 @@ namespace simple
     bool operator != (std::nullptr_t, intrusive_ptr<T> const& b) SIMPLE_NOEXCEPT
     {
         return nullptr != b.get();
+    }
+
+    template <class T>
+    T* get_pointer(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    {
+        return p.get();
+    }
+
+    template <class T, class U>
+    intrusive_ptr<U> static_pointer_cast(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    {
+        return intrusive_ptr<U>{ static_cast<U*>(p.get()) };
+    }
+
+    template <class T, class U>
+    intrusive_ptr<U> const_pointer_cast(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    {
+        return intrusive_ptr<U>{ const_cast<U*>(p.get()) };
+    }
+
+    template <class T, class U>
+    intrusive_ptr<U> dynamic_pointer_cast(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    {
+        return intrusive_ptr<U>{ dynamic_cast<U*>(p.get()) };
     }
 
     struct ref_count
@@ -788,6 +895,8 @@ namespace simple
             using reference = U&;
             using pointer = U*;
 
+            template <class V> friend class stable_list;
+
             iterator_base() SIMPLE_NOEXCEPT = default;
             ~iterator_base() SIMPLE_NOEXCEPT = default;
 
@@ -888,8 +997,6 @@ namespace simple
             }
 
         private:
-            template <class> friend class stable_list;
-
             intrusive_ptr<link_element> element;
 
             iterator_base(link_element* p) SIMPLE_NOEXCEPT
@@ -1278,12 +1385,20 @@ namespace simple
             }
         }
 
-        void swap(stable_list& other)
+        void swap(stable_list& other) SIMPLE_NOEXCEPT
         {
             if (this != &other) {
-                auto t{ std::move(*this) };
-                *this = std::move(other);
-                other = std::move(t);
+                intrusive_ptr<link_element> tmp_head{ std::move(head) };
+                intrusive_ptr<link_element> tmp_tail{ std::move(tail) };
+                std::size_t tmp_elements{ elements };
+
+                head = std::move(other.head);
+                tail = std::move(other.tail);
+                elements = other.elements;
+
+                other.head = std::move(tmp_head);
+                other.tail = std::move(tmp_tail);
+                other.elements = tmp_elements;
             }
         }
 
@@ -1550,9 +1665,9 @@ namespace simple
         void swap(connection& other) SIMPLE_NOEXCEPT
         {
             if (this != &other) {
-                auto t{ std::move(*this) };
-                *this = std::move(other);
-                other = std::move(t);
+                intrusive_ptr<detail::connection_base> tmp_base{ std::move(base) };
+                base = std::move(other.base);
+                other.base = std::move(tmp_base);
             }
         }
 
@@ -1825,12 +1940,17 @@ namespace simple
             tail->prev = head;
         }
 
-        void swap(signal& other)
+        void swap(signal& other) SIMPLE_NOEXCEPT
         {
             if (this != &other) {
-                auto t{ std::move(*this) };
-                *this = std::move(other);
-                other = std::move(t);
+                intrusive_ptr<connection_base> tmp_head{ std::move(head) };
+                intrusive_ptr<connection_base> tmp_tail{ std::move(tail) };
+
+                head = std::move(other.head);
+                tail = std::move(other.tail);
+
+                other.head = std::move(tmp_head);
+                other.tail = std::move(tmp_tail);
             }
         }
 
@@ -1970,6 +2090,29 @@ namespace simple
         return [object, method](Args... args) {
             return (object->*method)(args...);
         };
+    }
+
+    template <class T>
+    void swap(intrusive_ptr<T>& p1, intrusive_ptr<T>& p2) SIMPLE_NOEXCEPT
+    {
+        p1.swap(p2);
+    }
+
+    template <class T>
+    void swap(stable_list<T>& l1, stable_list<T>& l2) SIMPLE_NOEXCEPT
+    {
+        l1.swap(l2);
+    }
+
+    void swap(connection& c1, connection& c2) SIMPLE_NOEXCEPT
+    {
+        c1.swap(c2);
+    }
+
+    template <class Signature, class Collector>
+    void swap(signal<Signature, Collector>& s1, signal<Signature, Collector>& s2) SIMPLE_NOEXCEPT
+    {
+        s1.swap(s2);
     }
 }
 
