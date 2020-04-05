@@ -107,6 +107,56 @@ int main() {
 
 #include <string>
 #include <iostream>
+
+class Subject {
+public:
+    void setName(const std::string& newName) {
+        if (name != newName) {
+            name = newName;
+            nameChanged(newName);
+        }
+    }
+
+public:
+    simple::signal<void(std::string)> nameChanged;
+
+private:
+    std::string name;
+};
+
+class Observer {
+public:
+    Observer(Subject& subject) {
+        // Register the `onNameChanged`-function of this object as a listener and
+        // store the resultant connection object in the listener's connection set.
+
+        // This is all your need to do for the most common case, if you want the
+        // connection to be broken when the observer is destroyed.
+        connections += {
+            subject.nameChanged.connect(this, &Observer::onNameChanged)
+        };
+    }
+
+    void onNameChanged(const std::string& name) {
+        std::cout << "Subject received new name: " << name << std::endl;
+    }
+
+private:
+    simple::scoped_connection_container connections;
+};
+
+int main() {
+    Subject s;
+    Observer o{ s };
+    s.setName("Peter");
+}
+
+// Output:
+//     Subject received new name: Peter
+
+
+#include <string>
+#include <iostream>
 #include <memory>
 
 struct ILogger {
