@@ -1,23 +1,369 @@
-/////////////////////////////////////////////////////////////////////////////////////
-// simple - lightweight & fast signal/slots & utility library                      //
-//                                                                                 //
-//   v1.2 - public domain                                                          //
-//   no warranty is offered or implied; use this code at your own risk             //
-//                                                                                 //
-// AUTHORS                                                                         //
-//                                                                                 //
-//   Written by Michael Bleis                                                      //
-//                                                                                 //
-//                                                                                 //
-// LICENSE                                                                         //
-//                                                                                 //
-//   This software is dual-licensed to the public domain and under the following   //
-//   license: you are granted a perpetual, irrevocable license to copy, modify,    //
-//   publish, and distribute this file as you see fit.                             //
-/////////////////////////////////////////////////////////////////////////////////////
+/***********************************************************************************
+ * simple - lightweight & fast signal/slots & utility library                      *
+ *                                                                                 *
+ *   v1.3 - public domain                                                          *
+ *   no warranty is offered or implied; use this code at your own risk             *
+ *                                                                                 *
+ * AUTHORS                                                                         *
+ *                                                                                 *
+ *   Written by Michael Bleis                                                      *
+ *                                                                                 *
+ *                                                                                 *
+ * LICENSE                                                                         *
+ *                                                                                 *
+ *   This software is dual-licensed to the public domain and under the following   *
+ *   license: you are granted a perpetual, irrevocable license to copy, modify,    *
+ *   publish, and distribute this file as you see fit.                             *
+ ***********************************************************************************/
 
 #ifndef SIMPLE_HPP_INCLUDED
 #define SIMPLE_HPP_INCLUDED
+
+/***********************************************************************************
+ * CONFIGURATION                                                                   *
+ * ------------------------------------------------------------------------------- *
+ * Define this if your compiler doesn't support std::optional.                     *
+ * ------------------------------------------------------------------------------- */
+
+// #define SIMPLE_NO_STD_OPTIONAL
+
+/***********************************************************************************
+ * ------------------------------------------------------------------------------- *
+ * Define this if you want to disable exceptions.                                  *
+ * ------------------------------------------------------------------------------- */
+
+// #define SIMPLE_NO_EXCEPTIONS
+
+/***********************************************************************************
+ * ------------------------------------------------------------------------------- *
+ * Redefine this if your compiler doesn't support the `thread_local`-keyword.      *
+ * For Visual Studio < 2015 you can define it to `__declspec(thread)` for example. *
+ * ------------------------------------------------------------------------------- */
+
+#define SIMPLE_THREAD_LOCAL thread_local
+
+/***********************************************************************************
+ * ------------------------------------------------------------------------------- *
+ * Redefine this if your compiler doesn't support the `noexcept`-keyword.          *
+ * For Visual Studio < 2015 you can define it to `throw()` for example.            *
+ * ------------------------------------------------------------------------------- */
+
+#define SIMPLE_NOEXCEPT noexcept
+
+
+
+/***********************************************************************************
+ * USAGE                                                                           *
+ * ------------------------------------------------------------------------------- *
+ * 1. Creating your first signal                                                   *
+ * ------------------------------------------------------------------------------- *
+
+#include <iostream>
+
+int main() {
+    simple::signal<void()> my_signal;
+
+    // Connecting the first handler to our signal
+    my_signal.connect([]() {
+        std::cout << "First handler called!" << std::endl;
+    });
+
+    // Connecting a second handler to our signal using alternative syntax
+    my_signal += []() {
+        std::cout << "Second handler called!" << std::endl;
+    };
+
+    // Invoking the signal
+    my_signal();
+}
+
+// Output:
+//     First handler called!
+//     Second handler called!
+
+ * ------------------------------------------------------------------------------- *
+ * 2. Passing arguments to the signal                                              *
+ * ------------------------------------------------------------------------------- *
+
+#include <string>
+#include <iostream>
+
+int main() {
+    simple::signal<void(std::string)> my_signal;
+
+    my_signal.connect([](const std::string& argument) {
+        std::cout << "Handler called with arg: " << argument << std::endl;
+    });
+
+    my_signal("Hello world");
+}
+
+// Output:
+//     Handler called with arg: Hello world
+
+ * ------------------------------------------------------------------------------- *
+ * 3. Connecting class methods to the signal                                       *
+ * ------------------------------------------------------------------------------- *
+
+#include <string>
+#include <iostream>
+#include <memory>
+
+struct ILogger {
+    virtual void logMessage(const std::string& message) = 0;
+};
+
+struct ConsoleLogger : ILogger {
+    void logMessage(const std::string& message) override {
+        std::cout << "New log message: " << message << std::endl;
+    }
+};
+
+struct App {
+    void run() {
+        if (work()) {
+            onSuccess("I finished my work!");
+        }
+    }
+    bool work() {
+        return true;
+    }
+    simple::signal<void(std::string)> onSuccess;
+};
+
+int main() {
+    std::unique_ptr<App> app = std::make_unique<App>();
+
+    std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
+    app->onSuccess.connect(logger.get(), &ILogger::logMessage);
+
+    app->run();
+}
+
+// Output:
+//     New log message: I finished my work!
+
+ * ------------------------------------------------------------------------------- *
+ * 4.a Handling lifetime and scope of connection objects                            *
+ *                                                                                 *
+ * What if we want to destroy our logger instance from example 3 but continue      *
+ * to use the app instance?                                                        *
+ *                                                                                 *
+ * Solution: We use `scoped_connection`-objects to track our connected slots!      *
+ * ------------------------------------------------------------------------------- *
+
+// [...] (See example 3)
+
+int main() {
+    std::unique_ptr<App> app = std::make_unique<App>();
+    {
+        std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
+
+        simple::scoped_connection connection = app->onSuccess
+            .connect(logger.get(), &ILogger::logMessage);
+
+        app->run();
+
+    } //<-- `logger`-instance is destroyed at the end of this block
+      //<-- The `connection`-object is also destroyed here
+      //        and therefore removed from App::onSuccess.
+
+    // Run the app a second time
+    //
+    // This would normally cause a crash / undefined behavior because the logger
+    // instance is destroyed at this point, but App::onSuccess still referenced it
+    // in example 3.
+
+    app->run();
+}
+
+// Output:
+//     New log message: I finished my work!
+
+ * ------------------------------------------------------------------------------- *
+ * 4.b Advanced lifetime tracking                                                  *
+ *                                                                                 *
+ * The library can also track the lifetime of your class objects for you, if the   *
+ * connected slot instances inherit from the `simple::trackable` base class.       *
+ * ------------------------------------------------------------------------------- *
+
+ // [...] (See example 3)
+
+struct ILogger : simple::trackable {
+    virtual void logMessage(const std::string& message) = 0;
+};
+
+// [...] (See example 3)
+
+int main() {
+    std::unique_ptr<App> app = std::make_unique<App>();
+    {
+        std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
+        app->onSuccess.connect(logger.get(), &ILogger::logMessage);
+
+        app->run();
+
+    } //<-- `logger`-instance is destroyed at the end of this block
+
+      //<-- Because `ILogger` inherits from `simple::trackable`, the signal knows
+      //        about its destruction and will automatically disconnect the slot!
+
+    // Run the app a second time
+    //
+    // This would normally cause a crash / undefined behavior because the logger
+    // instance is destroyed at this point, but App::onSuccess still referenced it
+    // in example 3.
+
+    app->run();
+}
+
+ * ------------------------------------------------------------------------------- *
+ * 5. Getting return values from a call to a signal                                *
+ *                                                                                 *
+ * Slots can also return values to the emitting signal.                            *
+ * Because a signal can have several slots attached to it, the return values are   *
+ * collected by using the so called `value collectors`.                            *
+ *                                                                                 *
+ * The default value collector returns an `optional<T>` from a call to a           *
+ * `signal<T(...)>::operator()`                                                    *
+ *                                                                                 *
+ * However, this behaviour can be overriden at declaration time of the signal as   *
+ * well as during signal invocation.                                               *
+ * ------------------------------------------------------------------------------- *
+
+#include <cmath>
+#include <iostream>
+
+int main() {
+    simple::signal<int(int)> signal;
+
+    // The library supports argument and return type transformation between the
+    // signal and the slots. We show this by connecting the `float sqrtf(float)`
+    // function to a signal with an `int` argument and `int` return value.
+
+    signal.connect(std::sqrtf);
+
+    std::cout << "Computed value: " << *signal(16);
+}
+
+// Output:
+//     Computed value: 4
+
+#include <cmath>
+#include <iostream>
+#include <iomanip>
+
+int main() {
+    // Because we set `simple::range` as the value collector for this signal
+    // calling operator() now returns the return values of all connected slots.
+
+    simple::signal<float(float), simple::range<float>> signal;
+
+    // Lets connect a couple more functions to our signal and print all the
+    // return values.
+
+    signal.connect(std::sinf);
+    signal.connect(std::cosf);
+
+    std::cout << std::fixed << std::setprecision(2);
+
+    for (auto result : signal(3.14159)) {
+        std::cout << result << std::endl;
+    }
+
+    // We can also override the return value collector at invocation time
+
+    std::cout << "First return value: " << signal.invoke<simple::first<float>>(3.14159);
+    std::cout << std::endl;
+    std::cout << "Last return value: " << signal.invoke<simple::last<float>>(3.14159);
+}
+
+// Output:
+//     0.00
+//     -1.00
+//     First return value: 0.00
+//     Last return value: -1.00
+
+ * ------------------------------------------------------------------------------- *
+ * 6. Accessing the current connection object inside a slot                        *
+ *                                                                                 *
+ * Sometimes it is desirable to get an instance to the current connection object   *
+ * inside of a slot function. An example would be if you want to make a callback   *
+ * that only fires once and then disconnects itself from the signal that called it *
+ * ------------------------------------------------------------------------------- *
+
+#include <iostream>
+
+int main() {
+    simple::signal<void()> signal;
+
+    signal.connect([] {
+        std::cout << "Slot called. Now disconnecting..." << std::endl;
+
+        // `current_connection` is stored in thread-local-storage.
+        simple::current_connection().disconnect();
+    });
+
+    signal();
+    signal();
+    signal();
+}
+
+// Output:
+//     Slot called. Now disconnecting...
+
+ * ------------------------------------------------------------------------------- *
+ * 7. Preemtively aborting the emission of a signal                                *
+ *                                                                                 *
+ * A slot can preemtively abort the emission of a signal if it needs to.           *
+ * This is useful in scenarios where your slot functions try to find some value    *
+ * and you just want the result of the first slot that found one and stop other    *
+ * slots from running.                                                             *
+ * ------------------------------------------------------------------------------- *
+
+#include <iostream>
+
+int main() {
+    simple::signal<void()> signal;
+
+    signal.connect([] {
+        std::cout << "First slot called. Aborting emission of other slots." << std::endl;
+
+        simple::abort_emission();
+
+        // Notice that this doesn't disconnect the other slots. It just breaks out of the
+        // signal emitting loop.
+    });
+
+    signal.connect([] {
+        std::cout << "Second slot called. Should never happen." << std::endl;
+    });
+
+    signal();
+}
+
+// Output:
+//     First slot called. Aborting emission of other slots.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ***********************************************************************************
+ * BEGIN IMPLEMENTATION                                                            *
+ * ------------------------------------------------------------------------------- *
+ * Do not change anything below this line                                          *
+ * ------------------------------------------------------------------------------- *
+ ***********************************************************************************/
 
 #include <iterator>
 #include <exception>
@@ -31,20 +377,6 @@
 #include <initializer_list>
 #include <atomic>
 #include <limits>
-
-/// Define this if your compiler doesn't support std::optional
-// #define SIMPLE_NO_STD_OPTIONAL
-
-/// Define this if you want to disable exceptions.
-// #define SIMPLE_NO_EXCEPTIONS
-
-/// Redefine this if your compiler doesn't support the thread_local keyword
-/// For VS < 2015 you can define it to __declspec(thread) for example.
-#define SIMPLE_THREAD_LOCAL thread_local
-
-/// Redefine this if your compiler doesn't support the noexcept keyword
-/// For VS < 2015 you can define it to throw() for example.
-#define SIMPLE_NOEXCEPT noexcept
 
 #ifndef SIMPLE_NO_STD_OPTIONAL
 #   include <optional>
@@ -1684,12 +2016,12 @@ namespace simple
             disconnect();
         }
 
-        explicit scoped_connection(connection const& rhs) SIMPLE_NOEXCEPT
+        scoped_connection(connection const& rhs) SIMPLE_NOEXCEPT
             : connection{ rhs }
         {
         }
 
-        explicit scoped_connection(connection&& rhs) SIMPLE_NOEXCEPT
+        scoped_connection(connection&& rhs) SIMPLE_NOEXCEPT
             : connection{ std::move(rhs) }
         {
         }
@@ -1765,6 +2097,14 @@ namespace simple
         scoped_connection_container& operator += (connection const& conn)
         {
             append(conn);
+            return *this;
+        }
+
+        scoped_connection_container& operator += (std::initializer_list<connection> list)
+        {
+            for (auto const& connection : list) {
+                append(connection);
+            }
             return *this;
         }
 
