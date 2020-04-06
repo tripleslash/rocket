@@ -30,7 +30,7 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 #include <iostream>
 
 int main() {
-    simple::signal<void()> my_signal;
+    rocket::signal<void()> my_signal;
 
     // Connecting the first handler to our signal
     my_signal.connect([]() {
@@ -58,7 +58,7 @@ int main() {
 #include <iostream>
 
 int main() {
-    simple::signal<void(std::string)> my_signal;
+    rocket::signal<void(std::string)> my_signal;
    
     my_signal.connect([](const std::string& argument) {
         std::cout << "Handler called with arg: " << argument << std::endl;
@@ -87,7 +87,7 @@ public:
     }
 
 public:
-    simple::signal<void(std::string)> nameChanged;
+    rocket::signal<void(std::string)> nameChanged;
 
 private:
     std::string name;
@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    simple::scoped_connection_container connections;
+    rocket::scoped_connection_container connections;
 };
 
 int main() {
@@ -150,7 +150,7 @@ struct App {
     bool work() {
         return true;
     }
-    simple::signal<void(std::string)> onSuccess;
+    rocket::signal<void(std::string)> onSuccess;
 };
 
 int main() {
@@ -180,7 +180,7 @@ int main() {
     {
         std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
         
-        simple::scoped_connection connection = app->onSuccess
+        rocket::scoped_connection connection = app->onSuccess
             .connect(logger.get(), &ILogger::logMessage);
             
         app->run();
@@ -203,12 +203,12 @@ int main() {
 
 ## 4.b Advanced lifetime tracking
 
-The library can also track the lifetime of your class objects for you, if the connected slot instances inherit from the `simple::trackable` base class.
+The library can also track the lifetime of your class objects for you, if the connected slot instances inherit from the `rocket::trackable` base class.
 
 ```
 // [...] (See example 3)
 
-struct ILogger : simple::trackable {
+struct ILogger : rocket::trackable {
     virtual void logMessage(const std::string& message) = 0;
 };
 
@@ -223,7 +223,7 @@ int main() {
         app->run();
     } //<-- `logger`-instance is destroyed at the end of this block
     
-      //<-- Because `ILogger` inherits from `simple::trackable`, the signal knows
+      //<-- Because `ILogger` inherits from `rocket::trackable`, the signal knows
       //        about its destruction and will automatically disconnect the slot!
       
     // Run the app a second time
@@ -250,7 +250,7 @@ However, this behaviour can be overriden at declaration time of the signal as we
 #include <iostream>
 
 int main() {
-    simple::signal<int(int)> signal;
+    rocket::signal<int(int)> signal;
     
     // The library supports argument and return type transformation between the
     // signal and the slots. We show this by connecting the `float sqrtf(float)`
@@ -271,10 +271,10 @@ int main() {
 #include <iomanip>
 
 int main() {
-    // Because we set `simple::range` as the value collector for this signal
+    // Because we set `rocket::range` as the value collector for this signal
     // calling operator() now returns the return values of all connected slots.
     
-    simple::signal<float(float), simple::range<float>> signal;
+    rocket::signal<float(float), rocket::range<float>> signal;
     
     // Lets connect a couple more functions to our signal and print all the
     // return values.
@@ -289,9 +289,9 @@ int main() {
     }
     
     // We can also override the return value collector at invocation time
-    std::cout << "First return value: " << signal.invoke<simple::first<float>>(3.14159);
+    std::cout << "First return value: " << signal.invoke<rocket::first<float>>(3.14159);
     std::cout << std::endl;
-    std::cout << "Last return value: " << signal.invoke<simple::last<float>>(3.14159);
+    std::cout << "Last return value: " << signal.invoke<rocket::last<float>>(3.14159);
 }
 
 // Output:
@@ -309,13 +309,13 @@ Sometimes it is desirable to get an instance to the current connection object in
 #include <iostream>
 
 int main() {
-    simple::signal<void()> signal;
+    rocket::signal<void()> signal;
 
     signal.connect([] {
         std::cout << "Slot called. Now disconnecting..." << std::endl;
         
         // `current_connection` is stored in thread-local-storage.
-        simple::current_connection().disconnect();
+        rocket::current_connection().disconnect();
     });
     
     signal();
@@ -335,12 +335,12 @@ A slot can preemtively abort the emission of a signal if it needs to. This is us
 #include <iostream>
 
 int main() {
-    simple::signal<void()> signal;
+    rocket::signal<void()> signal;
     
     signal.connect([] {
         std::cout << "First slot called. Aborting emission of other slots." << std::endl;
         
-        simple::abort_emission();
+        rocket::abort_emission();
         // Notice that this doesn't disconnect the other slots. It just breaks out of the
         // signal emitting loop.
     });
