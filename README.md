@@ -327,7 +327,7 @@ int main() {
 //     Slot called. Now disconnecting...
 ```
 
-# 7. Preemtively aborting the emission of a signal
+## 7. Preemtively aborting the emission of a signal
 
 A slot can preemtively abort the emission of a signal if it needs to. This is useful in scenarios where your slot functions try to find some value and you just want the result of the first slot that found one and stop other slots from running.
 
