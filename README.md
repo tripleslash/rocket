@@ -1,4 +1,30 @@
-# 1. Creating your first signal
+# rocket - Fast C++ Observer Pattern
+
+Rocket is a single-header implementation of a signal/slots library for C++.
+
+The library was developed because existing solutions were too inflexible, too slow, or came as a part of a larger dependency (for example boost::signals and boost::signals2).
+
+## Design goals
+
+1. Efficiency. The library takes special care to not use cache unfriendly code (such as calling virtual methods) unless absolutely necessary.
+2. Low memory footprint (does not allocate during signal emission).
+3. Modern C++. No bloat from overloading 50 template specializations for each function.
+4. Single header file implementation.
+5. No dependencies.
+
+The API was heavily inspired by boost::signals2. If you are already familiar with boost::signals2, switching to rocket will be a no brainer.
+
+## What makes rocket unique?
+
+1. All classes in this library are single threaded. No efficiency loss due to locks or atomics.
+2. Policy based design. Specify at declaration time and invocation time of the signal how _you_ want the call results to be returned.
+3. The signals are reentrant. This property is a must have for any event processing library because it must be possible to recursively emit signals, or disconnect slots from within a signal handler.
+4. Support for smart `scoped_connection`'s and `scoped_connection_container`'s.
+5. Support for automatic lifetime tracking of observers via `rocket::trackable`.
+6. Allows slots to get an instance to the `current_connection` object (see example 6).
+7. Allows slots to preemtively abort the emission of the signal (see example 7).
+
+## 1. Creating your first signal
 
 ```
 #include <iostream>
@@ -25,7 +51,7 @@ int main() {
 //     Second handler called!
 ```
 
-# 2. Passing arguments to the signal
+## 2. Passing arguments to the signal
 
 ```
 #include <string>
@@ -45,7 +71,7 @@ int main() {
 //     Handler called with arg: Hello world
 ```
 
-# 3. Connecting class methods to the signal
+## 3. Connecting class methods to the signal
 
 ```
 #include <string>
@@ -98,7 +124,7 @@ int main() {
 //     Subject received new name: Peter
 ```
 
-## Another example: Binding pure virtual interface methods
+### Another example: Binding pure virtual interface methods
 
 ```
 #include <string>
@@ -140,7 +166,7 @@ int main() {
 //     New log message: I finished my work!
 ```
 
-# 4.a Handling lifetime and scope of connection objects
+## 4.a Handling lifetime and scope of connection objects
 
 What if we want to destroy our logger instance from example 3 but continue to use the app instance?
 
@@ -175,7 +201,7 @@ int main() {
 //     New log message: I finished my work!
 ```
 
-# 4.b Advanced lifetime tracking
+## 4.b Advanced lifetime tracking
 
 The library can also track the lifetime of your class objects for you, if the connected slot instances inherit from the `simple::trackable` base class.
 
@@ -210,7 +236,7 @@ int main() {
 }
 ```
 
-# 5. Getting return values from a call to a signal
+## 5. Getting return values from a call to a signal
 
 Slots can also return values to the emitting signal.
 Because a signal can have several slots attached to it, the return values are collected by using the so called `value collectors`.
@@ -275,7 +301,7 @@ int main() {
 //     Last return value: -1.00
 ```
 
-# 6. Accessing the current connection object inside a slot
+## 6. Accessing the current connection object inside a slot
 
 Sometimes it is desirable to get an instance to the current connection object inside of a slot function. An example would be if you want to make a callback that only fires once and then disconnects itself from the signal that called it.
 
