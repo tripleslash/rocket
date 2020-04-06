@@ -1,8 +1,8 @@
 
-#include "simple.hpp"
+#include "rocket.hpp"
 #include <iostream>
 
-struct Testing : simple::trackable
+struct Testing : rocket::trackable
 {
     int hello(float a)
     {
@@ -57,12 +57,12 @@ int main()
 {
     NonDefaultConstructible n{ 1337 };
     {
-        simple::stable_list<NonDefaultConstructible> list;
+        rocket::stable_list<NonDefaultConstructible> list;
         list.push_back(std::move(n));
     }
     {
-        simple::stable_list<int> list1{ 1, 2, 3, 4, 5 };
-        simple::stable_list<int> list2{ list1.crbegin(), list1.crend() };
+        rocket::stable_list<int> list1{ 1, 2, 3, 4, 5 };
+        rocket::stable_list<int> list2{ list1.crbegin(), list1.crend() };
 
         list2.resize(3);
         std::cout << "List size: " << list2.size() << std::endl;
@@ -73,7 +73,7 @@ int main()
         std::cout << std::endl;
     }
 
-    simple::signal<int(int)> test;
+    rocket::signal<int(int)> test;
 
     test.connect([](int x) {
         return x * 3;
@@ -87,27 +87,27 @@ int main()
 
     {
         // Give me the minimal value of all slots
-        typedef simple::minimum<int> selector;
+        typedef rocket::minimum<int> selector;
 
         std::cout << "Minimum: " << test.invoke<selector>(5) << std::endl;
     }
 
     {
         // Give me the last result in an optional (default behaviour)
-        simple::optional<int> r{ test(5) };
+        rocket::optional<int> r{ test(5) };
         std::cout << "Optional: " << *r << std::endl;
     }
 
     // Connect a new slot via scoped connections
     {
-        simple::scoped_connection scoped{
+        rocket::scoped_connection scoped{
             test.connect([](int x) {
                 return x * 4;
             })
         };
 
         // Give me all results in a list
-        typedef simple::range<int> selector;
+        typedef rocket::range<int> selector;
 
         std::cout << "Range: ";
 
@@ -129,7 +129,7 @@ int main()
 
     {
         auto classPtr = std::make_shared<TestShared>();
-        auto f = simple::bind_weak_ptr(classPtr, &TestShared::hello);
+        auto f = rocket::bind_weak_ptr(classPtr, &TestShared::hello);
         f(2);
     }
 
@@ -137,7 +137,7 @@ int main()
         // A slot that kills itself after the first call
         test.connect([](int) {
             // Get the connection object associated with this slot and kill it
-            simple::current_connection().disconnect();
+            rocket::current_connection().disconnect();
 
             std::cout << "called slot disconnect!" << std::endl;
             return 0;
@@ -150,7 +150,7 @@ int main()
     {
         // A slot that aborts emission after the first call
         test.connect([](int) {
-            simple::abort_emission();
+            rocket::abort_emission();
 
             std::cout << "called abort!" << std::endl;
             return 0;

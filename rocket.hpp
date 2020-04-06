@@ -1,5 +1,5 @@
 /***********************************************************************************
- * simple - lightweight & fast signal/slots & utility library                      *
+ * rocket - lightweight & fast signal/slots & utility library                      *
  *                                                                                 *
  *   v1.3 - public domain                                                          *
  *   no warranty is offered or implied; use this code at your own risk             *
@@ -16,8 +16,8 @@
  *   publish, and distribute this file as you see fit.                             *
  ***********************************************************************************/
 
-#ifndef SIMPLE_HPP_INCLUDED
-#define SIMPLE_HPP_INCLUDED
+#ifndef ROCKET_HPP_INCLUDED
+#define ROCKET_HPP_INCLUDED
 
 /***********************************************************************************
  * CONFIGURATION                                                                   *
@@ -25,14 +25,14 @@
  * Define this if your compiler doesn't support std::optional.                     *
  * ------------------------------------------------------------------------------- */
 
-// #define SIMPLE_NO_STD_OPTIONAL
+// #define ROCKET_NO_STD_OPTIONAL
 
 /***********************************************************************************
  * ------------------------------------------------------------------------------- *
  * Define this if you want to disable exceptions.                                  *
  * ------------------------------------------------------------------------------- */
 
-// #define SIMPLE_NO_EXCEPTIONS
+// #define ROCKET_NO_EXCEPTIONS
 
 /***********************************************************************************
  * ------------------------------------------------------------------------------- *
@@ -40,7 +40,7 @@
  * For Visual Studio < 2015 you can define it to `__declspec(thread)` for example. *
  * ------------------------------------------------------------------------------- */
 
-#define SIMPLE_THREAD_LOCAL thread_local
+#define ROCKET_THREAD_LOCAL thread_local
 
 /***********************************************************************************
  * ------------------------------------------------------------------------------- *
@@ -48,7 +48,7 @@
  * For Visual Studio < 2015 you can define it to `throw()` for example.            *
  * ------------------------------------------------------------------------------- */
 
-#define SIMPLE_NOEXCEPT noexcept
+#define ROCKET_NOEXCEPT noexcept
 
 
 
@@ -61,7 +61,7 @@
 #include <iostream>
 
 int main() {
-    simple::signal<void()> my_signal;
+    rocket::signal<void()> my_signal;
 
     // Connecting the first handler to our signal
     my_signal.connect([]() {
@@ -89,7 +89,7 @@ int main() {
 #include <iostream>
 
 int main() {
-    simple::signal<void(std::string)> my_signal;
+    rocket::signal<void(std::string)> my_signal;
 
     my_signal.connect([](const std::string& argument) {
         std::cout << "Handler called with arg: " << argument << std::endl;
@@ -118,7 +118,7 @@ public:
     }
 
 public:
-    simple::signal<void(std::string)> nameChanged;
+    rocket::signal<void(std::string)> nameChanged;
 
 private:
     std::string name;
@@ -142,7 +142,7 @@ public:
     }
 
 private:
-    simple::scoped_connection_container connections;
+    rocket::scoped_connection_container connections;
 };
 
 int main() {
@@ -178,7 +178,7 @@ struct App {
     bool work() {
         return true;
     }
-    simple::signal<void(std::string)> onSuccess;
+    rocket::signal<void(std::string)> onSuccess;
 };
 
 int main() {
@@ -209,7 +209,7 @@ int main() {
     {
         std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
 
-        simple::scoped_connection connection = app->onSuccess
+        rocket::scoped_connection connection = app->onSuccess
             .connect(logger.get(), &ILogger::logMessage);
 
         app->run();
@@ -234,12 +234,12 @@ int main() {
  * 4.b Advanced lifetime tracking                                                  *
  *                                                                                 *
  * The library can also track the lifetime of your class objects for you, if the   *
- * connected slot instances inherit from the `simple::trackable` base class.       *
+ * connected slot instances inherit from the `rocket::trackable` base class.       *
  * ------------------------------------------------------------------------------- *
 
  // [...] (See example 3)
 
-struct ILogger : simple::trackable {
+struct ILogger : rocket::trackable {
     virtual void logMessage(const std::string& message) = 0;
 };
 
@@ -255,7 +255,7 @@ int main() {
 
     } //<-- `logger`-instance is destroyed at the end of this block
 
-      //<-- Because `ILogger` inherits from `simple::trackable`, the signal knows
+      //<-- Because `ILogger` inherits from `rocket::trackable`, the signal knows
       //        about its destruction and will automatically disconnect the slot!
 
     // Run the app a second time
@@ -285,7 +285,7 @@ int main() {
 #include <iostream>
 
 int main() {
-    simple::signal<int(int)> signal;
+    rocket::signal<int(int)> signal;
 
     // The library supports argument and return type transformation between the
     // signal and the slots. We show this by connecting the `float sqrtf(float)`
@@ -304,10 +304,10 @@ int main() {
 #include <iomanip>
 
 int main() {
-    // Because we set `simple::range` as the value collector for this signal
+    // Because we set `rocket::range` as the value collector for this signal
     // calling operator() now returns the return values of all connected slots.
 
-    simple::signal<float(float), simple::range<float>> signal;
+    rocket::signal<float(float), rocket::range<float>> signal;
 
     // Lets connect a couple more functions to our signal and print all the
     // return values.
@@ -323,9 +323,9 @@ int main() {
 
     // We can also override the return value collector at invocation time
 
-    std::cout << "First return value: " << signal.invoke<simple::first<float>>(3.14159);
+    std::cout << "First return value: " << signal.invoke<rocket::first<float>>(3.14159);
     std::cout << std::endl;
-    std::cout << "Last return value: " << signal.invoke<simple::last<float>>(3.14159);
+    std::cout << "Last return value: " << signal.invoke<rocket::last<float>>(3.14159);
 }
 
 // Output:
@@ -345,13 +345,13 @@ int main() {
 #include <iostream>
 
 int main() {
-    simple::signal<void()> signal;
+    rocket::signal<void()> signal;
 
     signal.connect([] {
         std::cout << "Slot called. Now disconnecting..." << std::endl;
 
         // `current_connection` is stored in thread-local-storage.
-        simple::current_connection().disconnect();
+        rocket::current_connection().disconnect();
     });
 
     signal();
@@ -374,12 +374,12 @@ int main() {
 #include <iostream>
 
 int main() {
-    simple::signal<void()> signal;
+    rocket::signal<void()> signal;
 
     signal.connect([] {
         std::cout << "First slot called. Aborting emission of other slots." << std::endl;
 
-        simple::abort_emission();
+        rocket::abort_emission();
 
         // Notice that this doesn't disconnect the other slots. It just breaks out of the
         // signal emitting loop.
@@ -428,11 +428,11 @@ int main() {
 #include <atomic>
 #include <limits>
 
-#ifndef SIMPLE_NO_STD_OPTIONAL
+#ifndef ROCKET_NO_STD_OPTIONAL
 #   include <optional>
 #endif
 
-namespace simple
+namespace rocket
 {
     template <class T>
     struct minimum
@@ -551,37 +551,37 @@ namespace simple
         std::list<value_type> values;
     };
 
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
     struct error : std::exception
     {
     };
 
     struct bad_optional_access : error
     {
-        const char* what() const SIMPLE_NOEXCEPT override
+        const char* what() const ROCKET_NOEXCEPT override
         {
-            return "simplesig: Bad optional access.";
+            return "rocket: Bad optional access.";
         }
     };
 
     struct invocation_slot_error : error
     {
-        const char* what() const SIMPLE_NOEXCEPT override
+        const char* what() const ROCKET_NOEXCEPT override
         {
-            return "simplesig: One of the slots has raised an exception during the signal invocation.";
+            return "rocket: One of the slots has raised an exception during the signal invocation.";
         }
     };
 #endif
 
-#ifdef SIMPLE_NO_STD_OPTIONAL
+#ifdef ROCKET_NO_STD_OPTIONAL
     template <class T>
     struct optional
     {
         using value_type = T;
 
-        optional() SIMPLE_NOEXCEPT = default;
+        optional() ROCKET_NOEXCEPT = default;
 
-        ~optional() SIMPLE_NOEXCEPT
+        ~optional() ROCKET_NOEXCEPT
         {
             if (engaged()) {
                 disengage();
@@ -688,7 +688,7 @@ namespace simple
             return *this;
         }
 
-        void reset() SIMPLE_NOEXCEPT
+        void reset() ROCKET_NOEXCEPT
         {
             if (engaged()) {
                 disengage();
@@ -705,44 +705,44 @@ namespace simple
             return value();
         }
 
-        bool engaged() const SIMPLE_NOEXCEPT
+        bool engaged() const ROCKET_NOEXCEPT
         {
             return initialized;
         }
 
-        bool has_value() const SIMPLE_NOEXCEPT
+        bool has_value() const ROCKET_NOEXCEPT
         {
             return initialized;
         }
 
-        explicit operator bool() const SIMPLE_NOEXCEPT
+        explicit operator bool() const ROCKET_NOEXCEPT
         {
             return engaged();
         }
 
-        value_type& operator * () SIMPLE_NOEXCEPT
+        value_type& operator * () ROCKET_NOEXCEPT
         {
             return value();
         }
 
-        value_type const& operator * () const SIMPLE_NOEXCEPT
+        value_type const& operator * () const ROCKET_NOEXCEPT
         {
             return value();
         }
 
-        value_type* operator -> () SIMPLE_NOEXCEPT
+        value_type* operator -> () ROCKET_NOEXCEPT
         {
             return object();
         }
 
-        value_type const* operator -> () const SIMPLE_NOEXCEPT
+        value_type const* operator -> () const ROCKET_NOEXCEPT
         {
             return object();
         }
 
         value_type& value()
         {
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
             if (!engaged()) {
                 throw bad_optional_access{};
             }
@@ -752,7 +752,7 @@ namespace simple
 
         value_type const& value() const
         {
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
             if (!engaged()) {
                 throw bad_optional_access{};
             }
@@ -776,23 +776,23 @@ namespace simple
         }
 
     private:
-        void* storage() SIMPLE_NOEXCEPT
+        void* storage() ROCKET_NOEXCEPT
         {
             return static_cast<void*>(&buffer);
         }
 
-        void const* storage() const SIMPLE_NOEXCEPT
+        void const* storage() const ROCKET_NOEXCEPT
         {
             return static_cast<void const*>(&buffer);
         }
 
-        value_type* object() SIMPLE_NOEXCEPT
+        value_type* object() ROCKET_NOEXCEPT
         {
             assert(initialized == true);
             return static_cast<value_type*>(storage());
         }
 
-        value_type const* object() const SIMPLE_NOEXCEPT
+        value_type const* object() const ROCKET_NOEXCEPT
         {
             assert(initialized == true);
             return static_cast<value_type const*>(storage());
@@ -806,7 +806,7 @@ namespace simple
             initialized = true;
         }
 
-        void disengage() SIMPLE_NOEXCEPT
+        void disengage() ROCKET_NOEXCEPT
         {
             assert(initialized == true);
             object()->~value_type();
@@ -830,17 +830,17 @@ namespace simple
 
         template <class U> friend struct intrusive_ptr;
 
-        intrusive_ptr() SIMPLE_NOEXCEPT
+        intrusive_ptr() ROCKET_NOEXCEPT
             : ptr{ nullptr }
         {
         }
 
-        explicit intrusive_ptr(std::nullptr_t) SIMPLE_NOEXCEPT
+        explicit intrusive_ptr(std::nullptr_t) ROCKET_NOEXCEPT
             : ptr{ nullptr }
         {
         }
 
-        explicit intrusive_ptr(pointer p) SIMPLE_NOEXCEPT
+        explicit intrusive_ptr(pointer p) ROCKET_NOEXCEPT
             : ptr{ p }
         {
             if (ptr) {
@@ -848,7 +848,7 @@ namespace simple
             }
         }
 
-        intrusive_ptr(intrusive_ptr const& p) SIMPLE_NOEXCEPT
+        intrusive_ptr(intrusive_ptr const& p) ROCKET_NOEXCEPT
             : ptr{ p.ptr }
         {
             if (ptr) {
@@ -856,14 +856,14 @@ namespace simple
             }
         }
 
-        intrusive_ptr(intrusive_ptr&& p) SIMPLE_NOEXCEPT
+        intrusive_ptr(intrusive_ptr&& p) ROCKET_NOEXCEPT
             : ptr{ p.ptr }
         {
             p.ptr = nullptr;
         }
 
         template <class U>
-        explicit intrusive_ptr(intrusive_ptr<U> const& p) SIMPLE_NOEXCEPT
+        explicit intrusive_ptr(intrusive_ptr<U> const& p) ROCKET_NOEXCEPT
             : ptr{ p.ptr }
         {
             if (ptr) {
@@ -872,60 +872,60 @@ namespace simple
         }
 
         template <class U>
-        explicit intrusive_ptr(intrusive_ptr<U>&& p) SIMPLE_NOEXCEPT
+        explicit intrusive_ptr(intrusive_ptr<U>&& p) ROCKET_NOEXCEPT
             : ptr{ p.ptr }
         {
             p.ptr = nullptr;
         }
 
-        ~intrusive_ptr() SIMPLE_NOEXCEPT
+        ~intrusive_ptr() ROCKET_NOEXCEPT
         {
             if (ptr) {
                 ptr->release();
             }
         }
 
-        pointer get() const SIMPLE_NOEXCEPT
+        pointer get() const ROCKET_NOEXCEPT
         {
             return ptr;
         }
 
-        pointer detach() SIMPLE_NOEXCEPT
+        pointer detach() ROCKET_NOEXCEPT
         {
             pointer p = ptr;
             ptr = nullptr;
             return p;
         }
 
-        operator pointer() const SIMPLE_NOEXCEPT
+        operator pointer() const ROCKET_NOEXCEPT
         {
             return ptr;
         }
 
-        pointer operator -> () const SIMPLE_NOEXCEPT
+        pointer operator -> () const ROCKET_NOEXCEPT
         {
             assert(ptr != nullptr);
             return ptr;
         }
 
-        reference operator * () const SIMPLE_NOEXCEPT
+        reference operator * () const ROCKET_NOEXCEPT
         {
             assert(ptr != nullptr);
             return *ptr;
         }
 
-        pointer* operator & () SIMPLE_NOEXCEPT
+        pointer* operator & () ROCKET_NOEXCEPT
         {
             assert(ptr == nullptr);
             return &ptr;
         }
 
-        pointer const* operator & () const SIMPLE_NOEXCEPT
+        pointer const* operator & () const ROCKET_NOEXCEPT
         {
             return &ptr;
         }
 
-        intrusive_ptr& operator = (pointer p) SIMPLE_NOEXCEPT
+        intrusive_ptr& operator = (pointer p) ROCKET_NOEXCEPT
         {
             if (p) {
                 p->addref();
@@ -938,7 +938,7 @@ namespace simple
             return *this;
         }
 
-        intrusive_ptr& operator = (std::nullptr_t) SIMPLE_NOEXCEPT
+        intrusive_ptr& operator = (std::nullptr_t) ROCKET_NOEXCEPT
         {
             if (ptr) {
                 ptr->release();
@@ -947,12 +947,12 @@ namespace simple
             return *this;
         }
 
-        intrusive_ptr& operator = (intrusive_ptr const& p) SIMPLE_NOEXCEPT
+        intrusive_ptr& operator = (intrusive_ptr const& p) ROCKET_NOEXCEPT
         {
             return (*this = p.ptr);
         }
 
-        intrusive_ptr& operator = (intrusive_ptr&& p) SIMPLE_NOEXCEPT
+        intrusive_ptr& operator = (intrusive_ptr&& p) ROCKET_NOEXCEPT
         {
             if (ptr) {
                 ptr->release();
@@ -963,13 +963,13 @@ namespace simple
         }
 
         template <class U>
-        intrusive_ptr& operator = (intrusive_ptr<U> const& p) SIMPLE_NOEXCEPT
+        intrusive_ptr& operator = (intrusive_ptr<U> const& p) ROCKET_NOEXCEPT
         {
             return (*this = p.ptr);
         }
 
         template <class U>
-        intrusive_ptr& operator = (intrusive_ptr<U>&& p) SIMPLE_NOEXCEPT
+        intrusive_ptr& operator = (intrusive_ptr<U>&& p) ROCKET_NOEXCEPT
         {
             if (ptr) {
                 ptr->release();
@@ -979,14 +979,14 @@ namespace simple
             return *this;
         }
 
-        void swap(pointer* pp) SIMPLE_NOEXCEPT
+        void swap(pointer* pp) ROCKET_NOEXCEPT
         {
             pointer p = ptr;
             ptr = *pp;
             *pp = p;
         }
 
-        void swap(intrusive_ptr& p) SIMPLE_NOEXCEPT
+        void swap(intrusive_ptr& p) ROCKET_NOEXCEPT
         {
             swap(&p.ptr);
         }
@@ -996,174 +996,174 @@ namespace simple
     };
 
     template <class T, class U>
-    bool operator == (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator == (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() == b.get();
     }
 
     template <class T, class U>
-    bool operator == (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    bool operator == (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() == b;
     }
 
     template <class T, class U>
-    bool operator == (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator == (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a == b.get();
     }
 
     template <class T, class U>
-    bool operator != (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator != (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() != b.get();
     }
 
     template <class T, class U>
-    bool operator != (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    bool operator != (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() != b;
     }
 
     template <class T, class U>
-    bool operator != (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator != (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a != b.get();
     }
 
     template <class T, class U>
-    bool operator < (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator < (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() < b.get();
     }
 
     template <class T, class U>
-    bool operator < (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    bool operator < (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() < b;
     }
 
     template <class T, class U>
-    bool operator < (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator < (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a < b.get();
     }
 
     template <class T, class U>
-    bool operator <= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator <= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() <= b.get();
     }
 
     template <class T, class U>
-    bool operator <= (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    bool operator <= (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() <= b;
     }
 
     template <class T, class U>
-    bool operator <= (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator <= (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a <= b.get();
     }
 
     template <class T, class U>
-    bool operator > (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator > (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() > b.get();
     }
 
     template <class T, class U>
-    bool operator > (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    bool operator > (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() > b;
     }
 
     template <class T, class U>
-    bool operator > (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator > (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a > b.get();
     }
 
     template <class T, class U>
-    bool operator >= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator >= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() >= b.get();
     }
 
     template <class T, class U>
-    bool operator >= (intrusive_ptr<T> const& a, U* b) SIMPLE_NOEXCEPT
+    bool operator >= (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() >= b;
     }
 
     template <class T, class U>
-    bool operator >= (T* a, intrusive_ptr<U> const& b) SIMPLE_NOEXCEPT
+    bool operator >= (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a >= b.get();
     }
 
     template <class T>
-    bool operator == (intrusive_ptr<T> const& a, std::nullptr_t) SIMPLE_NOEXCEPT
+    bool operator == (intrusive_ptr<T> const& a, std::nullptr_t) ROCKET_NOEXCEPT
     {
         return a.get() == nullptr;
     }
 
     template <class T>
-    bool operator == (std::nullptr_t, intrusive_ptr<T> const& b) SIMPLE_NOEXCEPT
+    bool operator == (std::nullptr_t, intrusive_ptr<T> const& b) ROCKET_NOEXCEPT
     {
         return nullptr == b.get();
     }
 
     template <class T>
-    bool operator != (intrusive_ptr<T> const& a, std::nullptr_t) SIMPLE_NOEXCEPT
+    bool operator != (intrusive_ptr<T> const& a, std::nullptr_t) ROCKET_NOEXCEPT
     {
         return a.get() != nullptr;
     }
 
     template <class T>
-    bool operator != (std::nullptr_t, intrusive_ptr<T> const& b) SIMPLE_NOEXCEPT
+    bool operator != (std::nullptr_t, intrusive_ptr<T> const& b) ROCKET_NOEXCEPT
     {
         return nullptr != b.get();
     }
 
     template <class T>
-    T* get_pointer(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    T* get_pointer(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return p.get();
     }
 
     template <class T, class U>
-    intrusive_ptr<U> static_pointer_cast(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    intrusive_ptr<U> static_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return intrusive_ptr<U>{ static_cast<U*>(p.get()) };
     }
 
     template <class T, class U>
-    intrusive_ptr<U> const_pointer_cast(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    intrusive_ptr<U> const_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return intrusive_ptr<U>{ const_cast<U*>(p.get()) };
     }
 
     template <class T, class U>
-    intrusive_ptr<U> dynamic_pointer_cast(intrusive_ptr<T> const& p) SIMPLE_NOEXCEPT
+    intrusive_ptr<U> dynamic_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return intrusive_ptr<U>{ dynamic_cast<U*>(p.get()) };
     }
 
     struct ref_count
     {
-        unsigned long addref() SIMPLE_NOEXCEPT
+        unsigned long addref() ROCKET_NOEXCEPT
         {
             return ++count;
         }
 
-        unsigned long release() SIMPLE_NOEXCEPT
+        unsigned long release() ROCKET_NOEXCEPT
         {
             return --count;
         }
 
-        unsigned long get() const SIMPLE_NOEXCEPT
+        unsigned long get() const ROCKET_NOEXCEPT
         {
             return count;
         }
@@ -1174,17 +1174,17 @@ namespace simple
 
     struct ref_count_atomic
     {
-        unsigned long addref() SIMPLE_NOEXCEPT
+        unsigned long addref() ROCKET_NOEXCEPT
         {
             return ++count;
         }
 
-        unsigned long release() SIMPLE_NOEXCEPT
+        unsigned long release() ROCKET_NOEXCEPT
         {
             return --count;
         }
 
-        unsigned long get() const SIMPLE_NOEXCEPT
+        unsigned long get() const ROCKET_NOEXCEPT
         {
             return count.load();
         }
@@ -1196,23 +1196,23 @@ namespace simple
     template <class Class, class RefCount = ref_count>
     struct ref_counted
     {
-        ref_counted() SIMPLE_NOEXCEPT = default;
+        ref_counted() ROCKET_NOEXCEPT = default;
 
-        ref_counted(ref_counted const&) SIMPLE_NOEXCEPT
+        ref_counted(ref_counted const&) ROCKET_NOEXCEPT
         {
         }
 
-        ref_counted& operator = (ref_counted const&) SIMPLE_NOEXCEPT
+        ref_counted& operator = (ref_counted const&) ROCKET_NOEXCEPT
         {
             return *this;
         }
 
-        void addref() SIMPLE_NOEXCEPT
+        void addref() ROCKET_NOEXCEPT
         {
             count.addref();
         }
 
-        void release() SIMPLE_NOEXCEPT
+        void release() ROCKET_NOEXCEPT
         {
             if (count.release() == 0) {
                 delete static_cast<Class*>(this);
@@ -1220,7 +1220,7 @@ namespace simple
         }
 
     protected:
-        ~ref_counted() SIMPLE_NOEXCEPT = default;
+        ~ref_counted() ROCKET_NOEXCEPT = default;
 
     private:
         RefCount count{};
@@ -1231,9 +1231,9 @@ namespace simple
     {
         struct link_element : ref_counted<link_element>
         {
-            link_element() SIMPLE_NOEXCEPT = default;
+            link_element() ROCKET_NOEXCEPT = default;
 
-            ~link_element() SIMPLE_NOEXCEPT
+            ~link_element() ROCKET_NOEXCEPT
             {
                 if (next) {             // If we have a next element upon destruction
                     value()->~T();      // then this link is used, else it's a dummy
@@ -1246,12 +1246,12 @@ namespace simple
                 new (storage()) T{ std::forward<Args>(args)... };
             }
 
-            T* value() SIMPLE_NOEXCEPT
+            T* value() ROCKET_NOEXCEPT
             {
                 return static_cast<T*>(storage());
             }
 
-            void* storage() SIMPLE_NOEXCEPT
+            void* storage() ROCKET_NOEXCEPT
             {
                 return static_cast<void*>(&buffer);
             }
@@ -1279,101 +1279,101 @@ namespace simple
 
             template <class V> friend class stable_list;
 
-            iterator_base() SIMPLE_NOEXCEPT = default;
-            ~iterator_base() SIMPLE_NOEXCEPT = default;
+            iterator_base() ROCKET_NOEXCEPT = default;
+            ~iterator_base() ROCKET_NOEXCEPT = default;
 
-            iterator_base(iterator_base const& i) SIMPLE_NOEXCEPT
+            iterator_base(iterator_base const& i) ROCKET_NOEXCEPT
                 : element{ i.element }
             {
             }
 
-            iterator_base(iterator_base&& i) SIMPLE_NOEXCEPT
+            iterator_base(iterator_base&& i) ROCKET_NOEXCEPT
                 : element{ std::move(i.element) }
             {
             }
 
             template <class V>
-            explicit iterator_base(iterator_base<V> const& i) SIMPLE_NOEXCEPT
+            explicit iterator_base(iterator_base<V> const& i) ROCKET_NOEXCEPT
                 : element{ i.element }
             {
             }
 
             template <class V>
-            explicit iterator_base(iterator_base<V>&& i) SIMPLE_NOEXCEPT
+            explicit iterator_base(iterator_base<V>&& i) ROCKET_NOEXCEPT
                 : element{ std::move(i.element) }
             {
             }
 
-            iterator_base& operator = (iterator_base const& i) SIMPLE_NOEXCEPT
+            iterator_base& operator = (iterator_base const& i) ROCKET_NOEXCEPT
             {
                 element = i.element;
                 return *this;
             }
 
-            iterator_base& operator = (iterator_base&& i) SIMPLE_NOEXCEPT
+            iterator_base& operator = (iterator_base&& i) ROCKET_NOEXCEPT
             {
                 element = std::move(i.element);
                 return *this;
             }
 
             template <class V>
-            iterator_base& operator = (iterator_base<V> const& i) SIMPLE_NOEXCEPT
+            iterator_base& operator = (iterator_base<V> const& i) ROCKET_NOEXCEPT
             {
                 element = i.element;
                 return *this;
             }
 
             template <class V>
-            iterator_base& operator = (iterator_base<V>&& i) SIMPLE_NOEXCEPT
+            iterator_base& operator = (iterator_base<V>&& i) ROCKET_NOEXCEPT
             {
                 element = std::move(i.element);
                 return *this;
             }
 
-            iterator_base& operator ++ () SIMPLE_NOEXCEPT
+            iterator_base& operator ++ () ROCKET_NOEXCEPT
             {
                 element = element->next;
                 return *this;
             }
 
-            iterator_base operator ++ (int) SIMPLE_NOEXCEPT
+            iterator_base operator ++ (int) ROCKET_NOEXCEPT
             {
                 iterator_base i{ *this };
                 ++(*this);
                 return i;
             }
 
-            iterator_base& operator -- () SIMPLE_NOEXCEPT
+            iterator_base& operator -- () ROCKET_NOEXCEPT
             {
                 element = element->prev;
                 return *this;
             }
 
-            iterator_base operator -- (int) SIMPLE_NOEXCEPT
+            iterator_base operator -- (int) ROCKET_NOEXCEPT
             {
                 iterator_base i{ *this };
                 --(*this);
                 return i;
             }
 
-            reference operator * () const SIMPLE_NOEXCEPT
+            reference operator * () const ROCKET_NOEXCEPT
             {
                 return *element->value();
             }
 
-            pointer operator -> () const SIMPLE_NOEXCEPT
+            pointer operator -> () const ROCKET_NOEXCEPT
             {
                 return element->value();
             }
 
             template <class V>
-            bool operator == (iterator_base<V> const& i) const SIMPLE_NOEXCEPT
+            bool operator == (iterator_base<V> const& i) const ROCKET_NOEXCEPT
             {
                 return element == i.element;
             }
 
             template <class V>
-            bool operator != (iterator_base<V> const& i) const SIMPLE_NOEXCEPT
+            bool operator != (iterator_base<V> const& i) const ROCKET_NOEXCEPT
             {
                 return element != i.element;
             }
@@ -1381,7 +1381,7 @@ namespace simple
         private:
             intrusive_ptr<link_element> element;
 
-            iterator_base(link_element* p) SIMPLE_NOEXCEPT
+            iterator_base(link_element* p) ROCKET_NOEXCEPT
                 : element{ p }
             {
             }
@@ -1468,92 +1468,92 @@ namespace simple
             return *this;
         }
 
-        iterator begin() SIMPLE_NOEXCEPT
+        iterator begin() ROCKET_NOEXCEPT
         {
             return iterator{ head->next };
         }
 
-        iterator end() SIMPLE_NOEXCEPT
+        iterator end() ROCKET_NOEXCEPT
         {
             return iterator{ tail };
         }
 
-        const_iterator begin() const SIMPLE_NOEXCEPT
+        const_iterator begin() const ROCKET_NOEXCEPT
         {
             return const_iterator{ head->next };
         }
 
-        const_iterator end() const SIMPLE_NOEXCEPT
+        const_iterator end() const ROCKET_NOEXCEPT
         {
             return const_iterator{ tail };
         }
 
-        const_iterator cbegin() const SIMPLE_NOEXCEPT
+        const_iterator cbegin() const ROCKET_NOEXCEPT
         {
             return const_iterator{ head->next };
         }
 
-        const_iterator cend() const SIMPLE_NOEXCEPT
+        const_iterator cend() const ROCKET_NOEXCEPT
         {
             return const_iterator{ tail };
         }
 
-        reverse_iterator rbegin() SIMPLE_NOEXCEPT
+        reverse_iterator rbegin() ROCKET_NOEXCEPT
         {
             return reverse_iterator{ end() };
         }
 
-        reverse_iterator rend() SIMPLE_NOEXCEPT
+        reverse_iterator rend() ROCKET_NOEXCEPT
         {
             return reverse_iterator{ begin() };
         }
 
-        const_reverse_iterator rbegin() const SIMPLE_NOEXCEPT
+        const_reverse_iterator rbegin() const ROCKET_NOEXCEPT
         {
             return const_reverse_iterator{ cend() };
         }
 
-        const_reverse_iterator rend() const SIMPLE_NOEXCEPT
+        const_reverse_iterator rend() const ROCKET_NOEXCEPT
         {
             return const_reverse_iterator{ cbegin() };
         }
 
-        const_reverse_iterator crbegin() const SIMPLE_NOEXCEPT
+        const_reverse_iterator crbegin() const ROCKET_NOEXCEPT
         {
             return const_reverse_iterator{ cend() };
         }
 
-        const_reverse_iterator crend() const SIMPLE_NOEXCEPT
+        const_reverse_iterator crend() const ROCKET_NOEXCEPT
         {
             return const_reverse_iterator{ cbegin() };
         }
 
-        reference front() SIMPLE_NOEXCEPT
+        reference front() ROCKET_NOEXCEPT
         {
             return *begin();
         }
 
-        reference back() SIMPLE_NOEXCEPT
+        reference back() ROCKET_NOEXCEPT
         {
             return *rbegin();
         }
 
-        value_type const& front() const SIMPLE_NOEXCEPT
+        value_type const& front() const ROCKET_NOEXCEPT
         {
             return *cbegin();
         }
 
-        value_type const& back() const SIMPLE_NOEXCEPT
+        value_type const& back() const ROCKET_NOEXCEPT
         {
             return *crbegin();
         }
 
-        bool empty() const SIMPLE_NOEXCEPT
+        bool empty() const ROCKET_NOEXCEPT
         {
             return cbegin() == cend();
         }
 
-        void clear() SIMPLE_NOEXCEPT
+        void clear() ROCKET_NOEXCEPT
         {
             erase(begin(), end());
         }
@@ -1590,14 +1590,14 @@ namespace simple
             return *emplace(end(), std::forward<Args>(args)...);
         }
 
-        void pop_front() SIMPLE_NOEXCEPT
+        void pop_front() ROCKET_NOEXCEPT
         {
             head->next = head->next->next;
             head->next->prev = head;
             --elements;
         }
 
-        void pop_back() SIMPLE_NOEXCEPT
+        void pop_back() ROCKET_NOEXCEPT
         {
             tail->prev = tail->prev->prev;
             tail->prev->next = tail;
@@ -1714,17 +1714,17 @@ namespace simple
             }
         }
 
-        size_type size() const SIMPLE_NOEXCEPT
+        size_type size() const ROCKET_NOEXCEPT
         {
             return elements;
         }
 
-        size_type max_size() const SIMPLE_NOEXCEPT
+        size_type max_size() const ROCKET_NOEXCEPT
         {
             return std::numeric_limits<size_type>::max();
         }
 
-        iterator erase(iterator const& pos) SIMPLE_NOEXCEPT
+        iterator erase(iterator const& pos) ROCKET_NOEXCEPT
         {
             pos.element->prev->next = pos.element->next;
             pos.element->next->prev = pos.element->prev;
@@ -1732,7 +1732,7 @@ namespace simple
             return iterator{ pos.element->next };
         }
 
-        iterator erase(iterator const& first, iterator const& last) SIMPLE_NOEXCEPT
+        iterator erase(iterator const& first, iterator const& last) ROCKET_NOEXCEPT
         {
             auto link = first.element;
             while (link != last.element) {
@@ -1748,7 +1748,7 @@ namespace simple
             return last;
         }
 
-        void remove(value_type const& value) SIMPLE_NOEXCEPT
+        void remove(value_type const& value) ROCKET_NOEXCEPT
         {
             for (auto itr = begin(); itr != end(); ++itr) {
                 if (*itr == value) {
@@ -1767,7 +1767,7 @@ namespace simple
             }
         }
 
-        void swap(stable_list& other) SIMPLE_NOEXCEPT
+        void swap(stable_list& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
                 intrusive_ptr<link_element> tmp_head{ std::move(head) };
@@ -1829,21 +1829,21 @@ namespace simple
 
         struct connection_base : ref_counted<connection_base>
         {
-            virtual ~connection_base() SIMPLE_NOEXCEPT = default;
+            virtual ~connection_base() ROCKET_NOEXCEPT = default;
 
-            virtual bool connected() const SIMPLE_NOEXCEPT = 0;
-            virtual void disconnect() SIMPLE_NOEXCEPT = 0;
+            virtual bool connected() const ROCKET_NOEXCEPT = 0;
+            virtual void disconnect() ROCKET_NOEXCEPT = 0;
         };
 
         template <class T>
         struct functional_connection : connection_base
         {
-            bool connected() const SIMPLE_NOEXCEPT override
+            bool connected() const ROCKET_NOEXCEPT override
             {
                 return is_connected;
             }
 
-            void disconnect() SIMPLE_NOEXCEPT override
+            void disconnect() ROCKET_NOEXCEPT override
             {
                 if (is_connected) {
                     is_connected = false;
@@ -1867,22 +1867,22 @@ namespace simple
             bool emission_aborted;
         };
 
-        inline thread_local_data* get_thread_local_data() SIMPLE_NOEXCEPT
+        inline thread_local_data* get_thread_local_data() ROCKET_NOEXCEPT
         {
-            static SIMPLE_THREAD_LOCAL thread_local_data th;
+            static ROCKET_THREAD_LOCAL thread_local_data th;
             return &th;
         }
 
         struct connection_scope
         {
-            connection_scope(connection_base* base, thread_local_data* th) SIMPLE_NOEXCEPT
+            connection_scope(connection_base* base, thread_local_data* th) ROCKET_NOEXCEPT
                 : th{ th }
                 , prev{ th->current_connection }
             {
                 th->current_connection = base;
             }
 
-            ~connection_scope() SIMPLE_NOEXCEPT
+            ~connection_scope() ROCKET_NOEXCEPT
             {
                 th->current_connection = prev;
             }
@@ -1893,14 +1893,14 @@ namespace simple
 
         struct abort_scope
         {
-            abort_scope(thread_local_data* th) SIMPLE_NOEXCEPT
+            abort_scope(thread_local_data* th) ROCKET_NOEXCEPT
                 : th{ th }
                 , prev{ th->emission_aborted }
             {
                 th->emission_aborted = false;
             }
 
-            ~abort_scope() SIMPLE_NOEXCEPT
+            ~abort_scope() ROCKET_NOEXCEPT
             {
                 th->emission_aborted = prev;
             }
@@ -1986,57 +1986,57 @@ namespace simple
 
     struct connection
     {
-        connection() SIMPLE_NOEXCEPT = default;
-        ~connection() SIMPLE_NOEXCEPT = default;
+        connection() ROCKET_NOEXCEPT = default;
+        ~connection() ROCKET_NOEXCEPT = default;
 
-        connection(connection&& rhs) SIMPLE_NOEXCEPT
+        connection(connection&& rhs) ROCKET_NOEXCEPT
             : base{ std::move(rhs.base) }
         {
         }
 
-        connection(connection const& rhs) SIMPLE_NOEXCEPT
+        connection(connection const& rhs) ROCKET_NOEXCEPT
             : base{ rhs.base }
         {
         }
 
-        explicit connection(detail::connection_base* base) SIMPLE_NOEXCEPT
+        explicit connection(detail::connection_base* base) ROCKET_NOEXCEPT
             : base{ base }
         {
         }
 
-        connection& operator = (connection&& rhs) SIMPLE_NOEXCEPT
+        connection& operator = (connection&& rhs) ROCKET_NOEXCEPT
         {
             base = std::move(rhs.base);
             return *this;
         }
 
-        connection& operator = (connection const& rhs) SIMPLE_NOEXCEPT
+        connection& operator = (connection const& rhs) ROCKET_NOEXCEPT
         {
             base = rhs.base;
             return *this;
         }
 
-        bool operator == (connection const& rhs) const SIMPLE_NOEXCEPT
+        bool operator == (connection const& rhs) const ROCKET_NOEXCEPT
         {
             return base == rhs.base;
         }
 
-        bool operator != (connection const& rhs) const SIMPLE_NOEXCEPT
+        bool operator != (connection const& rhs) const ROCKET_NOEXCEPT
         {
             return base != rhs.base;
         }
 
-        explicit operator bool() const SIMPLE_NOEXCEPT
+        explicit operator bool() const ROCKET_NOEXCEPT
         {
             return connected();
         }
 
-        bool connected() const SIMPLE_NOEXCEPT
+        bool connected() const ROCKET_NOEXCEPT
         {
             return base ? base->connected() : false;
         }
 
-        void disconnect() SIMPLE_NOEXCEPT
+        void disconnect() ROCKET_NOEXCEPT
         {
             if (base != nullptr) {
                 base->disconnect();
@@ -2044,7 +2044,7 @@ namespace simple
             }
         }
 
-        void swap(connection& other) SIMPLE_NOEXCEPT
+        void swap(connection& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
                 intrusive_ptr<detail::connection_base> tmp_base{ std::move(base) };
@@ -2059,29 +2059,29 @@ namespace simple
 
     struct scoped_connection : connection
     {
-        scoped_connection() SIMPLE_NOEXCEPT = default;
+        scoped_connection() ROCKET_NOEXCEPT = default;
 
-        ~scoped_connection() SIMPLE_NOEXCEPT
+        ~scoped_connection() ROCKET_NOEXCEPT
         {
             disconnect();
         }
 
-        scoped_connection(connection const& rhs) SIMPLE_NOEXCEPT
+        scoped_connection(connection const& rhs) ROCKET_NOEXCEPT
             : connection{ rhs }
         {
         }
 
-        scoped_connection(connection&& rhs) SIMPLE_NOEXCEPT
+        scoped_connection(connection&& rhs) ROCKET_NOEXCEPT
             : connection{ std::move(rhs) }
         {
         }
 
-        scoped_connection(scoped_connection&& rhs) SIMPLE_NOEXCEPT
+        scoped_connection(scoped_connection&& rhs) ROCKET_NOEXCEPT
             : connection{ std::move(rhs) }
         {
         }
 
-        scoped_connection& operator = (connection&& rhs) SIMPLE_NOEXCEPT
+        scoped_connection& operator = (connection&& rhs) ROCKET_NOEXCEPT
         {
             disconnect();
 
@@ -2089,7 +2089,7 @@ namespace simple
             return *this;
         }
 
-        scoped_connection& operator = (scoped_connection&& rhs) SIMPLE_NOEXCEPT
+        scoped_connection& operator = (scoped_connection&& rhs) ROCKET_NOEXCEPT
         {
             disconnect();
 
@@ -2097,7 +2097,7 @@ namespace simple
             return *this;
         }
 
-        scoped_connection& operator = (connection const& rhs) SIMPLE_NOEXCEPT
+        scoped_connection& operator = (connection const& rhs) ROCKET_NOEXCEPT
         {
             disconnect();
 
@@ -2158,7 +2158,7 @@ namespace simple
             return *this;
         }
 
-        void disconnect() SIMPLE_NOEXCEPT
+        void disconnect() ROCKET_NOEXCEPT
         {
             connections.clear();
         }
@@ -2177,7 +2177,7 @@ namespace simple
             container.append(conn);
         }
 
-        void disconnect_tracked_connections() SIMPLE_NOEXCEPT
+        void disconnect_tracked_connections() ROCKET_NOEXCEPT
         {
             container.disconnect();
         }
@@ -2186,12 +2186,12 @@ namespace simple
         scoped_connection_container container;
     };
 
-    inline connection current_connection() SIMPLE_NOEXCEPT
+    inline connection current_connection() ROCKET_NOEXCEPT
     {
         return connection{ detail::get_thread_local_data()->current_connection };
     }
 
-    inline void abort_emission() SIMPLE_NOEXCEPT
+    inline void abort_emission() ROCKET_NOEXCEPT
     {
         detail::get_thread_local_data()->emission_aborted = true;
     }
@@ -2207,12 +2207,12 @@ namespace simple
         using value_type = void;
         using result_type = void;
 
-        void operator () () SIMPLE_NOEXCEPT
+        void operator () () ROCKET_NOEXCEPT
         {
             /* do nothing for void types */
         }
 
-        void result() SIMPLE_NOEXCEPT
+        void result() ROCKET_NOEXCEPT
         {
             /* do nothing for void types */
         }
@@ -2233,7 +2233,7 @@ namespace simple
             init();
         }
 
-        ~signal() SIMPLE_NOEXCEPT
+        ~signal() ROCKET_NOEXCEPT
         {
             destroy();
         }
@@ -2315,7 +2315,7 @@ namespace simple
             return connect(std::move(slot));
         }
 
-        void clear() SIMPLE_NOEXCEPT
+        void clear() ROCKET_NOEXCEPT
         {
             intrusive_ptr<connection_base> current{ head->next };
             while (current != tail) {
@@ -2330,7 +2330,7 @@ namespace simple
             tail->prev = head;
         }
 
-        void swap(signal& other) SIMPLE_NOEXCEPT
+        void swap(signal& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
                 intrusive_ptr<connection_base> tmp_head{ std::move(head) };
@@ -2347,7 +2347,7 @@ namespace simple
         template <class ValueCollector = Collector>
         auto invoke(Args const&... args) const -> decltype(ValueCollector{}.result())
         {
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
             bool error{ false };
 #endif
             ValueCollector collector{};
@@ -2363,11 +2363,11 @@ namespace simple
 
                     if (current->is_connected) {
                         detail::connection_scope cscope{ current, th };
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
                         try {
 #endif
                             invoke(collector, current->slot, args...);
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
                         } catch (...) {
                             error = true;
                         }
@@ -2381,7 +2381,7 @@ namespace simple
                 }
             }
 
-#ifndef SIMPLE_NO_EXCEPTIONS
+#ifndef ROCKET_NO_EXCEPTIONS
             if (error) {
                 throw invocation_slot_error{};
             }
@@ -2419,7 +2419,7 @@ namespace simple
             tail->prev = head;
         }
 
-        void destroy() SIMPLE_NOEXCEPT
+        void destroy() ROCKET_NOEXCEPT
         {
             clear();
             head->next = nullptr;
@@ -2483,24 +2483,24 @@ namespace simple
     }
 
     template <class T>
-    void swap(intrusive_ptr<T>& p1, intrusive_ptr<T>& p2) SIMPLE_NOEXCEPT
+    void swap(intrusive_ptr<T>& p1, intrusive_ptr<T>& p2) ROCKET_NOEXCEPT
     {
         p1.swap(p2);
     }
 
     template <class T>
-    void swap(stable_list<T>& l1, stable_list<T>& l2) SIMPLE_NOEXCEPT
+    void swap(stable_list<T>& l1, stable_list<T>& l2) ROCKET_NOEXCEPT
     {
         l1.swap(l2);
     }
 
-    void swap(connection& c1, connection& c2) SIMPLE_NOEXCEPT
+    void swap(connection& c1, connection& c2) ROCKET_NOEXCEPT
     {
         c1.swap(c2);
     }
 
     template <class Signature, class Collector>
-    void swap(signal<Signature, Collector>& s1, signal<Signature, Collector>& s2) SIMPLE_NOEXCEPT
+    void swap(signal<Signature, Collector>& s1, signal<Signature, Collector>& s2) ROCKET_NOEXCEPT
     {
         s1.swap(s2);
     }
