@@ -16,13 +16,17 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 
 ## What makes rocket unique?
 
-1. All classes in this library are single threaded. No efficiency loss due to locks or atomics.
+1. All classes in this library are single threaded<sup>[(1)](#footnote)</sup>. No efficiency loss due to locks or atomics.
 2. Policy based design. Specify at declaration time and invocation time of the signal how _you_ want the call results to be returned.
 3. The signals are reentrant. This property is a must have for any event processing library because it must be possible to recursively emit signals, or disconnect slots from within a signal handler.
 4. Support for smart `scoped_connection`'s and `scoped_connection_container`'s.
 5. Support for automatic lifetime tracking of observers via `rocket::trackable`.
 6. Allows slots to get an instance to the `current_connection` object (see example 6).
 7. Allows slots to preemtively abort the emission of the signal (see example 7).
+
+<br>
+
+<sup><a name="footnote">1)</a> This does not mean that you cannot use different signals in multiple different threads. The library has no global state and thus two different signals are always thread safe as long as you don't call one of them from multiple threads at the same time.</sup>
 
 ## 1. Creating your first signal
 
