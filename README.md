@@ -28,6 +28,17 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 
 <sup><a name="footnote">1)</a> This does not mean that you cannot use different signals in multiple different threads. The library has no global state and thus two different signals are always thread safe as long as you don't call one of them from multiple threads at the same time.</sup>
 
+## Performance
+
+Because the main focus of this library was to provide an efficient single threaded implementation, `rocket::signal` has about the same overhead as an iteration through an `std::list<std::function<T>>`.
+
+Here are some performance benchmarks between boost::signals2 and rocket for registering 10 slots to each signal type and emitting each one 1000 times.
+
+| Library         | Avg. execution time |
+| --------------  | -------------------:|
+| boost::signals2 |          810.389 µs |
+| rocket::signal  |           98.155 µs |
+
 ## 1. Creating your first signal
 
 ```
