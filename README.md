@@ -135,17 +135,20 @@ int main() {
 #include <iostream>
 #include <memory>
 
-struct ILogger {
+class ILogger {
+public:
     virtual void logMessage(const std::string& message) = 0;
 };
 
-struct ConsoleLogger : ILogger {
+class ConsoleLogger : public ILogger {
+public:
     void logMessage(const std::string& message) override {
         std::cout << "New log message: " << message << std::endl;
     }
 };
 
-struct App {
+class App {
+public:
     void run() {
         if (work()) {
             onSuccess("I finished my work!");
@@ -154,6 +157,7 @@ struct App {
     bool work() {
         return true;
     }
+public:
     rocket::signal<void(std::string)> onSuccess;
 };
 
