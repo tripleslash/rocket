@@ -26,7 +26,7 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 
 <br>
 
-<sup><a name="footnote">1)</a> This does not mean that you cannot use different signals in multiple different threads. The library has no global state and thus two different signals are always thread safe as long as you don't call one of them from multiple threads at the same time.</sup>
+<sup><a name="footnote">1)</a> This does not mean that you cannot use different signal instances in multiple different threads. The library has no global state and thus two different signal objects are always thread safe as long as you don't call one of them from multiple threads at the same time. However, it is thread unsafe to call any methods on the same class instance from multiple different threads. It is up to the user to provide synchronization in such a scenario.</sup>
 
 ## Performance
 
