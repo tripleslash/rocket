@@ -1,6 +1,6 @@
 # rocket - Fast C++ Observer Pattern
 
-Rocket is a single-header implementation of a signal/slots library for C++.
+Rocket is a public-domain, single-header implementation of a signal/slots library for C++.
 
 The library was developed because existing solutions were too inflexible, too slow, or came as a part of a larger dependency (for example boost::signals and boost::signals2).
 
