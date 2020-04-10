@@ -1838,17 +1838,23 @@ namespace rocket
         {
             virtual ~connection_base() ROCKET_NOEXCEPT = default;
 
-            void disconnect() ROCKET_NOEXCEPT
+            bool connected() const ROCKET_NOEXCEPT
             {
-                if (is_connected) {
-                    is_connected = false;
-
-                    next->prev = prev;
-                    prev->next = next;
-                }
+                return prev != nullptr;
             }
 
-            bool is_connected{ false };
+            void disconnect() ROCKET_NOEXCEPT
+            {
+                if (prev != nullptr) {
+                    next->prev = prev;
+                    prev->next = next;
+
+                    // To mark a connection as disconnected, just set its prev-link to null but
+                    // leave the next link alive so we can still traverse through the connections
+                    // if the slot gets disconnected during signal emit.
+                    prev = nullptr;
+                }
+            }
 
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
@@ -2033,7 +2039,7 @@ namespace rocket
 
         bool connected() const ROCKET_NOEXCEPT
         {
-            return base != nullptr ? base->is_connected : false;
+            return base != nullptr ? base->connected() : false;
         }
 
         void disconnect() ROCKET_NOEXCEPT
@@ -2320,9 +2326,8 @@ namespace rocket
             intrusive_ptr<detail::connection_base> current{ head->next };
             while (current != tail) {
                 intrusive_ptr<detail::connection_base> next{ current->next };
-                current->is_connected = false;
                 current->next = tail;
-                current->prev = head;
+                current->prev = nullptr;
                 current = std::move(next);
             }
 
@@ -2361,7 +2366,7 @@ namespace rocket
                 while (current != end) {
                     assert(current != nullptr);
 
-                    if (current->is_connected) {
+                    if (current->connected()) {
                         detail::connection_scope cscope{ current, th };
 #ifndef ROCKET_NO_EXCEPTIONS
                         try {
@@ -2447,7 +2452,6 @@ namespace rocket
         {
             intrusive_ptr<functional_connection> link{ new functional_connection };
             link->slot = std::move(slot);
-            link->is_connected = true;
             link->prev = l->prev;
             link->next = l;
             link->prev->next = link;
