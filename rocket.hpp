@@ -1838,19 +1838,7 @@ namespace rocket
         {
             virtual ~connection_base() ROCKET_NOEXCEPT = default;
 
-            virtual bool connected() const ROCKET_NOEXCEPT = 0;
-            virtual void disconnect() ROCKET_NOEXCEPT = 0;
-        };
-
-        template <class T>
-        struct functional_connection : connection_base
-        {
-            bool connected() const ROCKET_NOEXCEPT override
-            {
-                return is_connected;
-            }
-
-            void disconnect() ROCKET_NOEXCEPT override
+            void disconnect() ROCKET_NOEXCEPT
             {
                 if (is_connected) {
                     is_connected = false;
@@ -1860,11 +1848,16 @@ namespace rocket
                 }
             }
 
-            std::function<T> slot;
             bool is_connected{ false };
 
-            intrusive_ptr<functional_connection> next;
-            intrusive_ptr<functional_connection> prev;
+            intrusive_ptr<connection_base> next;
+            intrusive_ptr<connection_base> prev;
+        };
+
+        template <class T>
+        struct functional_connection : connection_base
+        {
+            std::function<T> slot;
         };
 
         // Should make sure that this is POD
@@ -2040,7 +2033,7 @@ namespace rocket
 
         bool connected() const ROCKET_NOEXCEPT
         {
-            return base ? base->connected() : false;
+            return base != nullptr ? base->is_connected : false;
         }
 
         void disconnect() ROCKET_NOEXCEPT
@@ -2324,9 +2317,9 @@ namespace rocket
 
         void clear() ROCKET_NOEXCEPT
         {
-            intrusive_ptr<connection_base> current{ head->next };
+            intrusive_ptr<detail::connection_base> current{ head->next };
             while (current != tail) {
-                intrusive_ptr<connection_base> next{ current->next };
+                intrusive_ptr<detail::connection_base> next{ current->next };
                 current->is_connected = false;
                 current->next = tail;
                 current->prev = head;
@@ -2340,8 +2333,8 @@ namespace rocket
         void swap(signal& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                intrusive_ptr<connection_base> tmp_head{ std::move(head) };
-                intrusive_ptr<connection_base> tmp_tail{ std::move(tail) };
+                intrusive_ptr<detail::connection_base> tmp_head{ std::move(head) };
+                intrusive_ptr<detail::connection_base> tmp_tail{ std::move(tail) };
 
                 head = std::move(other.head);
                 tail = std::move(other.tail);
@@ -2362,8 +2355,8 @@ namespace rocket
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
                 detail::abort_scope ascope{ th };
 
-                intrusive_ptr<connection_base> current{ head->next };
-                intrusive_ptr<connection_base> end{ tail };
+                intrusive_ptr<detail::connection_base> current{ head->next };
+                intrusive_ptr<detail::connection_base> end{ tail };
 
                 while (current != end) {
                     assert(current != nullptr);
@@ -2373,7 +2366,10 @@ namespace rocket
 #ifndef ROCKET_NO_EXCEPTIONS
                         try {
 #endif
-                            invoke(collector, current->slot, args...);
+                            functional_connection* conn = static_cast<
+                                functional_connection*>(static_cast<void*>(current));
+
+                            invoke(collector, conn->slot, args...);
 #ifndef ROCKET_NO_EXCEPTIONS
                         } catch (...) {
                             error = true;
@@ -2402,7 +2398,7 @@ namespace rocket
         }
 
     private:
-        using connection_base = detail::functional_connection<signature_type>;
+        using functional_connection = detail::functional_connection<signature_type>;
 
         template <class ValueCollector, class T = R>
         std::enable_if_t<std::is_void<T>::value, void>
@@ -2420,8 +2416,8 @@ namespace rocket
 
         void init()
         {
-            head = new connection_base;
-            tail = new connection_base;
+            head = new detail::connection_base;
+            tail = new detail::connection_base;
             head->next = tail;
             tail->prev = head;
         }
@@ -2435,18 +2431,21 @@ namespace rocket
 
         void copy(signal const& s)
         {
-            intrusive_ptr<connection_base> current{ s.head->next };
-            intrusive_ptr<connection_base> end{ s.tail };
+            intrusive_ptr<detail::connection_base> current{ s.head->next };
+            intrusive_ptr<detail::connection_base> end{ s.tail };
 
             while (current != end) {
-                make_link(tail, current->slot);
+                functional_connection* conn = static_cast<
+                    functional_connection*>(static_cast<void*>(current));
+
+                make_link(tail, conn->slot);
                 current = current->next;
             }
         }
 
-        connection_base* make_link(connection_base* l, slot_type slot)
+        functional_connection* make_link(detail::connection_base* l, slot_type slot)
         {
-            intrusive_ptr<connection_base> link{ new connection_base };
+            intrusive_ptr<functional_connection> link{ new functional_connection };
             link->slot = std::move(slot);
             link->is_connected = true;
             link->prev = l->prev;
@@ -2469,8 +2468,8 @@ namespace rocket
             static_cast<trackable*>(inst)->add_tracked_connection(conn);
         }
 
-        intrusive_ptr<connection_base> head;
-        intrusive_ptr<connection_base> tail;
+        intrusive_ptr<detail::connection_base> head;
+        intrusive_ptr<detail::connection_base> tail;
     };
 
     template <class Instance, class Class, class R, class... Args>
