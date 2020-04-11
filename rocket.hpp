@@ -434,6 +434,7 @@ int main() {
 #include <initializer_list>
 #include <atomic>
 #include <limits>
+#include <mutex>
 
 #ifndef ROCKET_NO_STD_OPTIONAL
 #   include <optional>
@@ -1822,6 +1823,15 @@ namespace rocket
         }
     };
 
+    template <bool ThreadSafe>
+    struct threading_policy
+    {
+        const bool is_thread_safe{ ThreadSafe };
+    };
+
+    struct thread_safe_policy : threading_policy<true> {};
+    struct thread_unsafe_policy : threading_policy<false> {};
+
     namespace detail
     {
         template <class>
@@ -1834,7 +1844,66 @@ namespace rocket
             using signature_type = R(Args...);
         };
 
-        struct connection_base : ref_counted<connection_base>
+        struct shared_lock : ref_counted<shared_lock, ref_count_atomic>
+        {
+            std::recursive_mutex mutex;
+        };
+
+        template <class ThreadingPolicy>
+        struct shared_lock_state;
+
+        template <>
+        struct shared_lock_state<thread_unsafe_policy>
+        {
+            void lock() ROCKET_NOEXCEPT
+            {
+            }
+
+            bool try_lock() ROCKET_NOEXCEPT
+            {
+                return true;
+            }
+
+            void unlock() ROCKET_NOEXCEPT
+            {
+            }
+        };
+
+        template <>
+        struct shared_lock_state<thread_safe_policy>
+        {
+            shared_lock_state()
+                : lock_primitive{ new shared_lock }
+            {
+            }
+
+            ~shared_lock_state() = default;
+
+            void lock()
+            {
+                lock_primitive->mutex.lock();
+            }
+
+            bool try_lock()
+            {
+                return lock_primitive->mutex.try_lock();
+            }
+
+            void unlock() 
+            {
+                lock_primitive->mutex.unlock();
+            }
+
+            intrusive_ptr<shared_lock> lock_primitive;
+        };
+
+        template <class ThreadingPolicy>
+        struct connection_base;
+
+        template <>
+        struct connection_base<thread_unsafe_policy>
+            : thread_unsafe_policy
+            , ref_counted<connection_base<thread_unsafe_policy>>
         {
             virtual ~connection_base() ROCKET_NOEXCEPT = default;
 
@@ -1860,8 +1929,41 @@ namespace rocket
             intrusive_ptr<connection_base> prev;
         };
 
-        template <class T>
-        struct functional_connection : connection_base
+        template <>
+        struct connection_base<thread_safe_policy>
+            : thread_safe_policy
+            , ref_counted<connection_base<thread_safe_policy>, ref_count_atomic>
+        {
+            virtual ~connection_base() ROCKET_NOEXCEPT = default;
+
+            bool connected() const ROCKET_NOEXCEPT
+            {
+                return static_cast<connection_base* volatile>(prev.get()) != nullptr;
+            }
+
+            void disconnect() ROCKET_NOEXCEPT
+            {
+                std::scoped_lock<std::recursive_mutex> guard{ lock->mutex };
+
+                if (prev != nullptr) {
+                    next->prev = prev;
+                    prev->next = next;
+
+                    // To mark a connection as disconnected, just set its prev-link to null but
+                    // leave the next link alive so we can still traverse through the connections
+                    // if the slot gets disconnected during signal emit.
+                    prev = nullptr;
+                }
+            }
+
+            intrusive_ptr<connection_base> next;
+            intrusive_ptr<connection_base> prev;
+
+            intrusive_ptr<shared_lock> lock;
+        };
+
+        template <class ThreadingPolicy, class T>
+        struct functional_connection : connection_base<ThreadingPolicy>
         {
             std::function<T> slot;
         };
@@ -1869,7 +1971,7 @@ namespace rocket
         // Should make sure that this is POD
         struct thread_local_data
         {
-            connection_base* current_connection;
+            void* current_connection;
             bool emission_aborted;
         };
 
@@ -1881,7 +1983,7 @@ namespace rocket
 
         struct connection_scope
         {
-            connection_scope(connection_base* base, thread_local_data* th) ROCKET_NOEXCEPT
+            connection_scope(void* base, thread_local_data* th) ROCKET_NOEXCEPT
                 : th{ th }
                 , prev{ th->current_connection }
             {
@@ -1894,7 +1996,7 @@ namespace rocket
             }
 
             thread_local_data* th;
-            connection_base* prev;
+            void* prev;
         };
 
         struct abort_scope
@@ -1992,33 +2094,49 @@ namespace rocket
 
     struct connection
     {
-        connection() ROCKET_NOEXCEPT = default;
-        ~connection() ROCKET_NOEXCEPT = default;
+        connection() ROCKET_NOEXCEPT
+            : base{ nullptr }
+        {
+        }
+
+        ~connection() ROCKET_NOEXCEPT
+        {
+            release();
+        }
 
         connection(connection&& rhs) ROCKET_NOEXCEPT
-            : base{ std::move(rhs.base) }
+            : base{ rhs.base }
         {
+            rhs.base = nullptr;
         }
 
         connection(connection const& rhs) ROCKET_NOEXCEPT
             : base{ rhs.base }
         {
+            addref();
         }
 
-        explicit connection(detail::connection_base* base) ROCKET_NOEXCEPT
+        explicit connection(void* base) ROCKET_NOEXCEPT
             : base{ base }
         {
+            addref();
         }
 
         connection& operator = (connection&& rhs) ROCKET_NOEXCEPT
         {
-            base = std::move(rhs.base);
+            release();
+            base = rhs.base;
+            rhs.base = nullptr;
             return *this;
         }
 
         connection& operator = (connection const& rhs) ROCKET_NOEXCEPT
         {
-            base = rhs.base;
+            if (this != &rhs) {
+                release();
+                base = rhs.base;
+                addref();
+            }
             return *this;
         }
 
@@ -2039,28 +2157,84 @@ namespace rocket
 
         bool connected() const ROCKET_NOEXCEPT
         {
-            return base != nullptr ? base->connected() : false;
+            if (base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (safe->is_thread_safe) {
+                    return safe->connected();
+                } else {
+                    return unsafe->connected();
+                }
+            }
+            return false;
         }
 
         void disconnect() ROCKET_NOEXCEPT
         {
             if (base != nullptr) {
-                base->disconnect();
-                base = nullptr;
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (safe->is_thread_safe) {
+                    safe->disconnect();
+                } else {
+                    unsafe->disconnect();
+                }
+
+                release();
             }
         }
 
         void swap(connection& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                intrusive_ptr<detail::connection_base> tmp_base{ std::move(base) };
-                base = std::move(other.base);
-                other.base = std::move(tmp_base);
+                void* tmp_base{ base };
+                base = other.base;
+                other.base = tmp_base;
             }
         }
 
     private:
-        intrusive_ptr<detail::connection_base> base;
+        void* base;
+
+        void addref() ROCKET_NOEXCEPT
+        {
+            if (base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (safe->is_thread_safe) {
+                    safe->addref();
+                } else {
+                    unsafe->addref();
+                }
+            }
+        }
+
+        void release() ROCKET_NOEXCEPT
+        {
+            if (base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (safe->is_thread_safe) {
+                    safe->release();
+                } else {
+                    unsafe->release();
+                }
+
+                base = nullptr;
+            }
+        }
     };
 
     struct scoped_connection : connection
@@ -2224,12 +2398,13 @@ namespace rocket
         }
     };
 
-    template <class Signature, class Collector = default_collector<
-        typename detail::expand_signature<Signature>::result_type>>
+    template <class Signature
+        , class Collector = default_collector<typename detail::expand_signature<Signature>::result_type>
+        , class ThreadingPolicy = thread_unsafe_policy>
     struct signal;
 
-    template <class Collector, class R, class... Args>
-    struct signal<R(Args...), Collector>
+    template <class Collector, class ThreadingPolicy, class R, class... Args>
+    struct signal<R(Args...), Collector, ThreadingPolicy>
     {
         using signature_type = R(Args...);
         using slot_type = std::function<signature_type>;
@@ -2245,20 +2420,27 @@ namespace rocket
         }
 
         signal(signal&& s)
-            : head{ std::move(s.head) }
-            , tail{ std::move(s.tail) }
         {
+            std::scoped_lock<shared_lock_state> guard{ s.lock_state };
+
+            head = std::move(s.head);
+            tail = std::move(s.tail);
+
             s.init();
         }
 
         signal(signal const& s)
         {
+            std::scoped_lock<shared_lock_state> guard{ s.lock_state };
+
             init();
             copy(s);
         }
 
         signal& operator = (signal&& rhs)
         {
+            std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
+
             destroy();
             head = std::move(rhs.head);
             tail = std::move(rhs.tail);
@@ -2269,6 +2451,8 @@ namespace rocket
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
+                std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
+
                 clear();
                 copy(rhs);
             }
@@ -2279,9 +2463,11 @@ namespace rocket
         {
             assert(slot != nullptr);
 
-            detail::connection_base* base = make_link(
+            std::scoped_lock<shared_lock_state> guard{ lock_state };
+
+            connection_base* base = make_link(
                 first ? head->next : tail, std::move(slot));
-            return connection{ base };
+            return connection{ static_cast<void*>(base) };
         }
 
         template <class R1, class... Args1>
@@ -2323,9 +2509,11 @@ namespace rocket
 
         void clear() ROCKET_NOEXCEPT
         {
-            intrusive_ptr<detail::connection_base> current{ head->next };
+            std::scoped_lock<shared_lock_state> guard{ lock_state };
+
+            intrusive_ptr<connection_base> current{ head->next };
             while (current != tail) {
-                intrusive_ptr<detail::connection_base> next{ current->next };
+                intrusive_ptr<connection_base> next{ current->next };
                 current->next = tail;
                 current->prev = nullptr;
                 current = std::move(next);
@@ -2338,8 +2526,10 @@ namespace rocket
         void swap(signal& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                intrusive_ptr<detail::connection_base> tmp_head{ std::move(head) };
-                intrusive_ptr<detail::connection_base> tmp_tail{ std::move(tail) };
+                std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, other.lock_state };
+
+                intrusive_ptr<connection_base> tmp_head{ std::move(head) };
+                intrusive_ptr<connection_base> tmp_tail{ std::move(tail) };
 
                 head = std::move(other.head);
                 tail = std::move(other.tail);
@@ -2360,14 +2550,19 @@ namespace rocket
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
                 detail::abort_scope ascope{ th };
 
-                intrusive_ptr<detail::connection_base> current{ head->next };
-                intrusive_ptr<detail::connection_base> end{ tail };
+                lock_state.lock();
+
+                intrusive_ptr<connection_base> current{ head->next };
+                intrusive_ptr<connection_base> end{ tail };
 
                 while (current != end) {
                     assert(current != nullptr);
 
                     if (current->connected()) {
                         detail::connection_scope cscope{ current, th };
+
+                        lock_state.unlock();
+
 #ifndef ROCKET_NO_EXCEPTIONS
                         try {
 #endif
@@ -2380,6 +2575,8 @@ namespace rocket
                             error = true;
                         }
 #endif
+                        lock_state.lock();
+
                         if (th->emission_aborted) {
                             break;
                         }
@@ -2387,6 +2584,8 @@ namespace rocket
 
                     current = current->next;
                 }
+
+                lock_state.unlock();
             }
 
 #ifndef ROCKET_NO_EXCEPTIONS
@@ -2403,7 +2602,9 @@ namespace rocket
         }
 
     private:
-        using functional_connection = detail::functional_connection<signature_type>;
+        using shared_lock_state = detail::shared_lock_state<ThreadingPolicy>;
+        using connection_base = detail::connection_base<ThreadingPolicy>;
+        using functional_connection = detail::functional_connection<ThreadingPolicy, signature_type>;
 
         template <class ValueCollector, class T = R>
         std::enable_if_t<std::is_void<T>::value, void>
@@ -2421,8 +2622,8 @@ namespace rocket
 
         void init()
         {
-            head = new detail::connection_base;
-            tail = new detail::connection_base;
+            head = new connection_base;
+            tail = new connection_base;
             head->next = tail;
             tail->prev = head;
         }
@@ -2436,8 +2637,8 @@ namespace rocket
 
         void copy(signal const& s)
         {
-            intrusive_ptr<detail::connection_base> current{ s.head->next };
-            intrusive_ptr<detail::connection_base> end{ s.tail };
+            intrusive_ptr<connection_base> current{ s.head->next };
+            intrusive_ptr<connection_base> end{ s.tail };
 
             while (current != end) {
                 functional_connection* conn = static_cast<
@@ -2448,15 +2649,30 @@ namespace rocket
             }
         }
 
-        functional_connection* make_link(detail::connection_base* l, slot_type slot)
+        functional_connection* make_link(connection_base* l, slot_type slot)
         {
             intrusive_ptr<functional_connection> link{ new functional_connection };
+            assign_shared_lock_if_needed(link);
+
             link->slot = std::move(slot);
             link->prev = l->prev;
             link->next = l;
             link->prev->next = link;
             link->next->prev = link;
             return link;
+        }
+
+        template <class T = ThreadingPolicy>
+        std::enable_if_t<std::is_same<T, thread_safe_policy>::value, void>
+            assign_shared_lock_if_needed(connection_base* l)
+        {
+            l->lock = lock_state.lock_primitive;
+        }
+
+        template <class T = ThreadingPolicy>
+        std::enable_if_t<std::is_same<T, thread_unsafe_policy>::value, void>
+            assign_shared_lock_if_needed(connection_base* l)
+        {
         }
 
         template <class Instance>
@@ -2472,9 +2688,15 @@ namespace rocket
             static_cast<trackable*>(inst)->add_tracked_connection(conn);
         }
 
-        intrusive_ptr<detail::connection_base> head;
-        intrusive_ptr<detail::connection_base> tail;
+        intrusive_ptr<connection_base> head;
+        intrusive_ptr<connection_base> tail;
+
+        mutable shared_lock_state lock_state;
     };
+
+    template <class Signature
+        , class Collector = default_collector<typename detail::expand_signature<Signature>::result_type>>
+    using thread_safe_signal = signal<Signature, Collector, thread_safe_policy>;
 
     template <class Instance, class Class, class R, class... Args>
     std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
