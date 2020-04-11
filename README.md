@@ -16,7 +16,7 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 
 ## What makes rocket unique?
 
-1. All classes in this library are single threaded<sup>[(1)](#footnote)</sup>. No efficiency loss due to locks or atomics.
+1. The library provides both a thread-safe and a thread-unsafe implementation. No efficiency loss due to locks or atomics in the thread-unsafe implementation.
 2. Policy based design. Specify at declaration time and invocation time of the signal how _you_ want the call results to be returned.
 3. The signals are reentrant. This property is a must have for any event processing library because it must be possible to recursively emit signals, or disconnect slots from within a signal handler.
 4. Support for smart `scoped_connection`'s and `scoped_connection_container`'s.
@@ -24,9 +24,6 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 6. Allows slots to get an instance to the `current_connection` object (see example 6).
 7. Allows slots to preemtively abort the emission of the signal (see example 7).
 
-<br>
-
-<sup><a name="footnote">1)</a> This does not mean that you cannot use different signal instances in multiple different threads. The library has no global state and thus two different signal objects are always thread safe as long as you don't call one of them from multiple threads at the same time. However, it is thread unsafe to call any methods on the same class instance from multiple different threads. It is up to the user to provide synchronization in such a scenario.</sup>
 
 ## Performance
 
@@ -45,20 +42,21 @@ Here are some performance benchmarks between boost::signals2 and rocket for regi
 #include <iostream>
 
 int main() {
-    rocket::signal<void()> my_signal;
+    rocket::signal<void()> thread_unsafe_signal;
+    rocket::thread_safe_signal<void()> thread_safe_signal;
 
     // Connecting the first handler to our signal
-    my_signal.connect([]() {
+    thread_unsafe_signal.connect([]() {
         std::cout << "First handler called!" << std::endl;
     });
     
     // Connecting a second handler to our signal using alternative syntax
-    my_signal += []() {
+    thread_unsafe_signal += []() {
         std::cout << "Second handler called!" << std::endl;
     };
     
     // Invoking the signal
-    my_signal();
+    thread_unsafe_signal();
 }
 
 // Output:

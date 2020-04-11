@@ -1,7 +1,7 @@
 /***********************************************************************************
  * rocket - lightweight & fast signal/slots & utility library                      *
  *                                                                                 *
- *   v1.3 - public domain                                                          *
+ *   v2.0 - public domain                                                          *
  *   no warranty is offered or implied; use this code at your own risk             *
  *                                                                                 *
  * AUTHORS                                                                         *
