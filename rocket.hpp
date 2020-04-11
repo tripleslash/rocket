@@ -1844,6 +1844,9 @@ namespace rocket
             using signature_type = R(Args...);
         };
 
+        template <class Signature>
+        using get_result_type = typename expand_signature<Signature>::result_type;
+
         struct shared_lock : ref_counted<shared_lock, ref_count_atomic>
         {
             std::recursive_mutex mutex;
@@ -2026,23 +2029,21 @@ namespace rocket
             {
             }
 
-            template <class T = R, class... Args1>
-            std::enable_if_t<std::is_void<T>::value, void> operator () (Args1&&... args) const
+            template <class... Args1>
+            auto operator () (Args1&&... args) const
             {
-                if (auto strong = weak.lock()) {
-                    (strong.get()->*method)(std::forward<Args1>(args)...);
+                if constexpr (std::is_void_v<R>) {
+                    if (auto strong = weak.lock()) {
+                        (strong.get()->*method)(std::forward<Args1>(args)...);
+                    }
+                } else {
+                    if (auto strong = weak.lock()) {
+                        return optional<R>{
+                            (strong.get()->*method)(std::forward<Args1>(args)...)
+                        };
+                    }
+                    return optional<R>{};
                 }
-            }
-
-            template <class T = R, class... Args1>
-            std::enable_if_t<!std::is_void<T>::value, optional<T>> operator () (Args1&&... args) const
-            {
-                if (auto strong = weak.lock()) {
-                    return optional<T>{
-                        (strong.get()->*method)(std::forward<Args1>(args)...)
-                    };
-                }
-                return optional<T>{};
             }
 
         private:
@@ -2073,21 +2074,18 @@ namespace rocket
 
     template <class Instance, class Class, class R, class... Args>
     auto bind_weak_ptr(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
-        -> detail::weak_mem_fn<Instance, Class, R, Args...>
     {
         return detail::weak_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
 
     template <class Instance, class Class, class R, class... Args>
     auto bind_weak_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
-        -> detail::weak_mem_fn<Instance, Class, R, Args...>
     {
         return detail::weak_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
 
     template <class Instance, class Class, class R, class... Args>
     auto bind_shared_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
-        -> detail::shared_mem_fn<Instance, Class, R, Args...>
     {
         return detail::shared_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
@@ -2399,7 +2397,7 @@ namespace rocket
     };
 
     template <class Signature
-        , class Collector = default_collector<typename detail::expand_signature<Signature>::result_type>
+        , class Collector = default_collector<detail::get_result_type<Signature>>
         , class ThreadingPolicy = thread_unsafe_policy>
     struct signal;
 
@@ -2486,7 +2484,9 @@ namespace rocket
                     return R((object.*method)(Args1(args)...));
                 }, first)
             };
-            maybe_add_tracked_connection(&object, c);
+            if constexpr (std::is_base_of_v<Instance, trackable>) {
+                static_cast<trackable&>(object).add_tracked_connection(conn);
+            }
             return c;
         }
 
@@ -2498,7 +2498,9 @@ namespace rocket
                     return R((object->*method)(Args1(args)...));
                 }, first)
             };
-            maybe_add_tracked_connection(object, c);
+            if constexpr (std::is_base_of_v<Instance, trackable>) {
+                static_cast<trackable*>(object)->add_tracked_connection(conn);
+            }
             return c;
         }
 
@@ -2540,7 +2542,7 @@ namespace rocket
         }
 
         template <class ValueCollector = Collector>
-        auto invoke(Args const&... args) const -> decltype(ValueCollector{}.result())
+        auto invoke(Args const&... args) const
         {
 #ifndef ROCKET_NO_EXCEPTIONS
             bool error{ false };
@@ -2569,7 +2571,11 @@ namespace rocket
                             functional_connection* conn = static_cast<
                                 functional_connection*>(static_cast<void*>(current));
 
-                            invoke(collector, conn->slot, args...);
+                            if constexpr (std::is_void_v<R>) {
+                                conn->slot(args...); collector();
+                            } else {
+                                collector(conn->slot(args...));
+                            }
 #ifndef ROCKET_NO_EXCEPTIONS
                         } catch (...) {
                             error = true;
@@ -2596,7 +2602,7 @@ namespace rocket
             return collector.result();
         }
 
-        auto operator () (Args const&... args) const -> decltype(invoke(args...))
+        auto operator () (Args const&... args) const
         {
             return invoke(args...);
         }
@@ -2605,20 +2611,6 @@ namespace rocket
         using shared_lock_state = detail::shared_lock_state<ThreadingPolicy>;
         using connection_base = detail::connection_base<ThreadingPolicy>;
         using functional_connection = detail::functional_connection<ThreadingPolicy, signature_type>;
-
-        template <class ValueCollector, class T = R>
-        std::enable_if_t<std::is_void<T>::value, void>
-            invoke(ValueCollector& collector, slot_type const& slot, Args const&... args) const
-        {
-            slot(args...); collector();
-        }
-
-        template <class ValueCollector, class T = R>
-        std::enable_if_t<!std::is_void<T>::value, void>
-            invoke(ValueCollector& collector, slot_type const& slot, Args const&... args) const
-        {
-            collector(slot(args...));
-        }
 
         void init()
         {
@@ -2652,7 +2644,10 @@ namespace rocket
         functional_connection* make_link(connection_base* l, slot_type slot)
         {
             intrusive_ptr<functional_connection> link{ new functional_connection };
-            assign_shared_lock_if_needed(link);
+
+            if constexpr (std::is_same_v<ThreadingPolicy, thread_safe_policy>) {
+                l->lock = lock_state.lock_primitive;
+            }
 
             link->slot = std::move(slot);
             link->prev = l->prev;
@@ -2662,32 +2657,6 @@ namespace rocket
             return link;
         }
 
-        template <class T = ThreadingPolicy>
-        std::enable_if_t<std::is_same<T, thread_safe_policy>::value, void>
-            assign_shared_lock_if_needed(connection_base* l)
-        {
-            l->lock = lock_state.lock_primitive;
-        }
-
-        template <class T = ThreadingPolicy>
-        std::enable_if_t<std::is_same<T, thread_unsafe_policy>::value, void>
-            assign_shared_lock_if_needed(connection_base* l)
-        {
-        }
-
-        template <class Instance>
-        std::enable_if_t<!std::is_base_of<trackable, Instance>::value, void>
-            maybe_add_tracked_connection(Instance*, connection)
-        {
-        }
-
-        template <class Instance>
-        std::enable_if_t<std::is_base_of<trackable, Instance>::value, void>
-            maybe_add_tracked_connection(Instance* inst, connection conn)
-        {
-            static_cast<trackable*>(inst)->add_tracked_connection(conn);
-        }
-
         intrusive_ptr<connection_base> head;
         intrusive_ptr<connection_base> tail;
 
@@ -2695,7 +2664,7 @@ namespace rocket
     };
 
     template <class Signature
-        , class Collector = default_collector<typename detail::expand_signature<Signature>::result_type>>
+        , class Collector = default_collector<detail::get_result_type<Signature>>>
     using thread_safe_signal = signal<Signature, Collector, thread_safe_policy>;
 
     template <class Instance, class Class, class R, class... Args>
