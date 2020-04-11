@@ -1840,12 +1840,12 @@ namespace rocket
         template <class R, class... Args>
         struct expand_signature<R(Args...)>
         {
-            using result_type = R;
+            using return_type = R;
             using signature_type = R(Args...);
         };
 
         template <class Signature>
-        using get_result_type = typename expand_signature<Signature>::result_type;
+        using get_return_type = typename expand_signature<Signature>::return_type;
 
         struct shared_lock : ref_counted<shared_lock, ref_count_atomic>
         {
@@ -2397,7 +2397,7 @@ namespace rocket
     };
 
     template <class Signature
-        , class Collector = default_collector<detail::get_result_type<Signature>>
+        , class Collector = default_collector<detail::get_return_type<Signature>>
         , class ThreadingPolicy = thread_unsafe_policy>
     struct signal;
 
@@ -2664,7 +2664,7 @@ namespace rocket
     };
 
     template <class Signature
-        , class Collector = default_collector<detail::get_result_type<Signature>>>
+        , class Collector = default_collector<detail::get_return_type<Signature>>>
     using thread_safe_signal = signal<Signature, Collector, thread_safe_policy>;
 
     template <class Instance, class Class, class R, class... Args>
