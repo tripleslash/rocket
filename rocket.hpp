@@ -1841,7 +1841,7 @@ namespace rocket
 
         struct shared_lock : ref_counted<shared_lock, ref_count_atomic>
         {
-            std::recursive_mutex mutex;
+            std::mutex mutex;
         };
 
         template <class ThreadingPolicy>
@@ -1850,15 +1850,6 @@ namespace rocket
         template <>
         struct shared_lock_state<thread_unsafe_policy>
         {
-            shared_lock_state() = default;
-            ~shared_lock_state() = default;
-
-            shared_lock_state(shared_lock_state const&) = default;
-            shared_lock_state& operator = (shared_lock_state const&) = default;
-
-            shared_lock_state(shared_lock_state&&) = default;
-            shared_lock_state& operator = (shared_lock_state&&) = default;
-
             void lock() ROCKET_NOEXCEPT
             {
             }
@@ -1887,19 +1878,28 @@ namespace rocket
 
             ~shared_lock_state() = default;
 
-            shared_lock_state(shared_lock_state const&) = default;
-            shared_lock_state& operator = (shared_lock_state const&) = default;
-
-            shared_lock_state(shared_lock_state&& other)
-                : lock_primitive{ std::move(other.lock_primitive) }
+            shared_lock_state(shared_lock_state const& s)
+                : lock_primitive{ s.lock_primitive }
             {
-                other.lock_primitive = new shared_lock;
             }
 
-            shared_lock_state& operator = (shared_lock_state&& other)
+            shared_lock_state(shared_lock_state&& s)
+                : lock_primitive{ std::move(s.lock_primitive) }
             {
-                lock_primitive = std::move(other.lock_primitive);
-                other.lock_primitive = new shared_lock;
+                s.lock_primitive = new shared_lock;
+            }
+
+            shared_lock_state& operator = (shared_lock_state const& rhs)
+            {
+                lock_primitive = rhs.lock_primitive;
+                return *this;
+            }
+
+            shared_lock_state& operator = (shared_lock_state&& rhs)
+            {
+                lock_primitive = std::move(rhs.lock_primitive);
+                rhs.lock_primitive = new shared_lock;
+                return *this;
             }
 
             void lock()
@@ -1926,25 +1926,44 @@ namespace rocket
         };
 
         template <class ThreadingPolicy>
-        struct lock_and_swap
+        struct mutex;
+
+        template <>
+        struct mutex<thread_unsafe_policy>
         {
-            lock_and_swap(shared_lock_state<ThreadingPolicy>& s1, shared_lock_state<ThreadingPolicy>& s2)
-                : s1{ s1 }
-                , s2{ s2 }
+            void lock() ROCKET_NOEXCEPT
             {
-                std::lock(s1, s2);
             }
 
-            ~lock_and_swap()
+            bool try_lock() ROCKET_NOEXCEPT
             {
-                s1.swap(s2);
-
-                s1.unlock();
-                s2.unlock();
+                return true;
             }
 
-            shared_lock_state<ThreadingPolicy>& s1;
-            shared_lock_state<ThreadingPolicy>& s2;
+            void unlock() ROCKET_NOEXCEPT
+            {
+            }
+        };
+
+        template <>
+        struct mutex<thread_safe_policy>
+        {
+            void lock()
+            {
+                lock_primitive.lock();
+            }
+
+            bool try_lock()
+            {
+                return lock_primitive.try_lock();
+            }
+
+            void unlock()
+            {
+                lock_primitive.unlock();
+            }
+
+            std::mutex lock_primitive;
         };
 
         template <class ThreadingPolicy>
@@ -1993,7 +2012,7 @@ namespace rocket
 
             void disconnect() ROCKET_NOEXCEPT
             {
-                std::scoped_lock<std::recursive_mutex> guard{ lock->mutex };
+                std::scoped_lock<std::mutex> guard{ lock->mutex };
 
                 if (prev != nullptr) {
                     next->prev = prev;
@@ -2461,13 +2480,20 @@ namespace rocket
 
         ~signal() ROCKET_NOEXCEPT
         {
+            get_swap_mutex()->lock();
             std::scoped_lock<shared_lock_state> guard{ lock_state };
+            get_swap_mutex()->unlock();
+
             destroy();
         }
 
         signal(signal&& s)
         {
-            lock_and_swap guard{ lock_state, s.lock_state };
+            get_swap_mutex()->lock();
+            std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, s.lock_state };
+            lock_state.swap(s.lock_state);
+            get_swap_mutex()->unlock();
+
             head = std::move(s.head);
             tail = std::move(s.tail);
             s.init();
@@ -2477,13 +2503,20 @@ namespace rocket
         {
             init();
 
+            get_swap_mutex()->lock();
             std::scoped_lock<shared_lock_state> guard{ s.lock_state };
+            get_swap_mutex()->unlock();
+
             copy(s);
         }
 
         signal& operator = (signal&& rhs)
         {
-            lock_and_swap guard{ lock_state, rhs.lock_state };
+            get_swap_mutex()->lock();
+            std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
+            lock_state.swap(rhs.lock_state);
+            get_swap_mutex()->unlock();
+
             destroy();
             head = std::move(rhs.head);
             tail = std::move(rhs.tail);
@@ -2494,9 +2527,11 @@ namespace rocket
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
+                get_swap_mutex()->lock();
                 std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
+                get_swap_mutex()->unlock();
 
-                clear();
+                clear_without_lock();
                 copy(rhs);
             }
             return *this;
@@ -2506,7 +2541,9 @@ namespace rocket
         {
             assert(slot != nullptr);
 
+            get_swap_mutex()->lock();
             std::scoped_lock<shared_lock_state> guard{ lock_state };
+            get_swap_mutex()->unlock();
 
             connection_base* base = make_link(
                 first ? head->next : tail, std::move(slot));
@@ -2530,7 +2567,7 @@ namespace rocket
                 }, first)
             };
             if constexpr (std::is_base_of_v<Instance, trackable>) {
-                static_cast<trackable&>(object).add_tracked_connection(conn);
+                static_cast<trackable&>(object).add_tracked_connection(c);
             }
             return c;
         }
@@ -2544,7 +2581,7 @@ namespace rocket
                 }, first)
             };
             if constexpr (std::is_base_of_v<Instance, trackable>) {
-                static_cast<trackable*>(object)->add_tracked_connection(conn);
+                static_cast<trackable*>(object)->add_tracked_connection(c);
             }
             return c;
         }
@@ -2556,24 +2593,20 @@ namespace rocket
 
         void clear() ROCKET_NOEXCEPT
         {
+            get_swap_mutex()->lock();
             std::scoped_lock<shared_lock_state> guard{ lock_state };
+            get_swap_mutex()->unlock();
 
-            intrusive_ptr<connection_base> current{ head->next };
-            while (current != tail) {
-                intrusive_ptr<connection_base> next{ current->next };
-                current->next = tail;
-                current->prev = nullptr;
-                current = std::move(next);
-            }
-
-            head->next = tail;
-            tail->prev = head;
+            clear_without_lock();
         }
 
         void swap(signal& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                lock_and_swap guard{ lock_state, other.lock_state };
+                get_swap_mutex()->lock();
+                std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, other.lock_state };
+                lock_state.swap(other.lock_state);
+                get_swap_mutex()->unlock();
 
                 head.swap(other.head);
                 tail.swap(other.tail);
@@ -2591,9 +2624,12 @@ namespace rocket
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
                 detail::abort_scope ascope{ th };
 
-                lock_state.lock();
+                get_swap_mutex()->lock();
 
                 shared_lock_state prev_lock_state{ lock_state };
+                prev_lock_state.lock();
+
+                get_swap_mutex()->unlock();
 
                 intrusive_ptr<connection_base> current{ head->next };
                 intrusive_ptr<connection_base> end{ tail };
@@ -2649,7 +2685,7 @@ namespace rocket
         }
 
     private:
-        using lock_and_swap = detail::lock_and_swap<ThreadingPolicy>;
+        using mutex = detail::mutex<ThreadingPolicy>;
         using shared_lock_state = detail::shared_lock_state<ThreadingPolicy>;
         using connection_base = detail::connection_base<ThreadingPolicy>;
         using functional_connection = detail::functional_connection<ThreadingPolicy, signature_type>;
@@ -2664,9 +2700,23 @@ namespace rocket
 
         void destroy() ROCKET_NOEXCEPT
         {
-            clear();
+            clear_without_lock();
             head->next = nullptr;
             tail->prev = nullptr;
+        }
+
+        void clear_without_lock() ROCKET_NOEXCEPT
+        {
+            intrusive_ptr<connection_base> current{ head->next };
+            while (current != tail) {
+                intrusive_ptr<connection_base> next{ current->next };
+                current->next = tail;
+                current->prev = nullptr;
+                current = std::move(next);
+            }
+
+            head->next = tail;
+            tail->prev = head;
         }
 
         void copy(signal const& s)
@@ -2697,6 +2747,12 @@ namespace rocket
             link->prev->next = link;
             link->next->prev = link;
             return link;
+        }
+
+        static mutex* get_swap_mutex()
+        {
+            static mutex swap_mutex;
+            return &swap_mutex;
         }
 
         intrusive_ptr<connection_base> head;
@@ -2742,8 +2798,8 @@ namespace rocket
         c1.swap(c2);
     }
 
-    template <class Signature, class Collector>
-    void swap(signal<Signature, Collector>& s1, signal<Signature, Collector>& s2) ROCKET_NOEXCEPT
+    template <class Signature, class Collector, class ThreadingPolicy>
+    void swap(signal<Signature, Collector, ThreadingPolicy>& s1, signal<Signature, Collector, ThreadingPolicy>& s2) ROCKET_NOEXCEPT
     {
         s1.swap(s2);
     }
