@@ -382,8 +382,6 @@ Lets say we have a subject called `ModelFileLoaderThread`. It loads files from d
 We also have an observer. The `RenderThread`. The `RenderThread` now wants to know whenever a new file is fully loaded, so it can display it in the scene.
 
 ```
-#include <thread>
-
 class ModelFileLoaderThread {
 public:
     void start() {
@@ -403,19 +401,22 @@ public:
 
 private:
     void run() {
-        std::forward_list<std::string> requests;
-        {
-            std::scoped_lock<std::mutex> guard{ mutex };
-            loadRequests.swap(requests);
-        }
-        for (auto& fileName : requests) {
-            ModelFilePtr modelFile = new ModelFile(fileName);
-            
-            if (modelFile->loadModel()) {
-                modelLoaded(modelFile);
-            } else {
-                modelLoadFailed(fileName);
+        while (shouldRun) {
+            std::forward_list<std::string> requests;
+            {
+                std::scoped_lock<std::mutex> guard{ mutex };
+                loadRequests.swap(requests);
             }
+            for (auto& fileName : requests) {
+                ModelFilePtr modelFile = new ModelFile(fileName);
+
+                if (modelFile->loadModel()) {
+                    modelLoaded(modelFile);
+                } else {
+                    modelLoadFailed(fileName);
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
     }
     
