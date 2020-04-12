@@ -1778,17 +1778,9 @@ namespace rocket
         void swap(stable_list& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                intrusive_ptr<link_element> tmp_head{ std::move(head) };
-                intrusive_ptr<link_element> tmp_tail{ std::move(tail) };
-                std::size_t tmp_elements{ elements };
-
-                head = std::move(other.head);
-                tail = std::move(other.tail);
-                elements = other.elements;
-
-                other.head = std::move(tmp_head);
-                other.tail = std::move(tmp_tail);
-                other.elements = tmp_elements;
+                head.swap(other.head);
+                tail.swap(other.tail);
+                std::swap(elements, other.elements);
             }
         }
 
@@ -1858,6 +1850,15 @@ namespace rocket
         template <>
         struct shared_lock_state<thread_unsafe_policy>
         {
+            shared_lock_state() = default;
+            ~shared_lock_state() = default;
+
+            shared_lock_state(shared_lock_state const&) = default;
+            shared_lock_state& operator = (shared_lock_state const&) = default;
+
+            shared_lock_state(shared_lock_state&&) = default;
+            shared_lock_state& operator = (shared_lock_state&&) = default;
+
             void lock() ROCKET_NOEXCEPT
             {
             }
@@ -1868,6 +1869,10 @@ namespace rocket
             }
 
             void unlock() ROCKET_NOEXCEPT
+            {
+            }
+
+            void swap(shared_lock_state& s) ROCKET_NOEXCEPT
             {
             }
         };
@@ -1881,6 +1886,21 @@ namespace rocket
             }
 
             ~shared_lock_state() = default;
+
+            shared_lock_state(shared_lock_state const&) = default;
+            shared_lock_state& operator = (shared_lock_state const&) = default;
+
+            shared_lock_state(shared_lock_state&& other)
+                : lock_primitive{ std::move(other.lock_primitive) }
+            {
+                other.lock_primitive = new shared_lock;
+            }
+
+            shared_lock_state& operator = (shared_lock_state&& other)
+            {
+                lock_primitive = std::move(other.lock_primitive);
+                other.lock_primitive = new shared_lock;
+            }
 
             void lock()
             {
@@ -1897,7 +1917,34 @@ namespace rocket
                 lock_primitive->mutex.unlock();
             }
 
+            void swap(shared_lock_state& s) ROCKET_NOEXCEPT
+            {
+                lock_primitive.swap(s.lock_primitive);
+            }
+
             intrusive_ptr<shared_lock> lock_primitive;
+        };
+
+        template <class ThreadingPolicy>
+        struct lock_and_swap
+        {
+            lock_and_swap(shared_lock_state<ThreadingPolicy>& s1, shared_lock_state<ThreadingPolicy>& s2)
+                : s1{ s1 }
+                , s2{ s2 }
+            {
+                std::lock(s1, s2);
+            }
+
+            ~lock_and_swap()
+            {
+                s1.swap(s2);
+
+                s1.unlock();
+                s2.unlock();
+            }
+
+            shared_lock_state<ThreadingPolicy>& s1;
+            shared_lock_state<ThreadingPolicy>& s2;
         };
 
         template <class ThreadingPolicy>
@@ -2414,31 +2461,29 @@ namespace rocket
 
         ~signal() ROCKET_NOEXCEPT
         {
+            std::scoped_lock<shared_lock_state> guard{ lock_state };
             destroy();
         }
 
         signal(signal&& s)
         {
-            std::scoped_lock<shared_lock_state> guard{ s.lock_state };
-
+            lock_and_swap guard{ lock_state, s.lock_state };
             head = std::move(s.head);
             tail = std::move(s.tail);
-
             s.init();
         }
 
         signal(signal const& s)
         {
-            std::scoped_lock<shared_lock_state> guard{ s.lock_state };
-
             init();
+
+            std::scoped_lock<shared_lock_state> guard{ s.lock_state };
             copy(s);
         }
 
         signal& operator = (signal&& rhs)
         {
-            std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
-
+            lock_and_swap guard{ lock_state, rhs.lock_state };
             destroy();
             head = std::move(rhs.head);
             tail = std::move(rhs.tail);
@@ -2528,16 +2573,10 @@ namespace rocket
         void swap(signal& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, other.lock_state };
+                lock_and_swap guard{ lock_state, other.lock_state };
 
-                intrusive_ptr<connection_base> tmp_head{ std::move(head) };
-                intrusive_ptr<connection_base> tmp_tail{ std::move(tail) };
-
-                head = std::move(other.head);
-                tail = std::move(other.tail);
-
-                other.head = std::move(tmp_head);
-                other.tail = std::move(tmp_tail);
+                head.swap(other.head);
+                tail.swap(other.tail);
             }
         }
 
@@ -2554,6 +2593,8 @@ namespace rocket
 
                 lock_state.lock();
 
+                shared_lock_state prev_lock_state{ lock_state };
+
                 intrusive_ptr<connection_base> current{ head->next };
                 intrusive_ptr<connection_base> end{ tail };
 
@@ -2563,7 +2604,7 @@ namespace rocket
                     if (current->connected()) {
                         detail::connection_scope cscope{ current, th };
 
-                        lock_state.unlock();
+                        prev_lock_state.unlock();
 
 #ifndef ROCKET_NO_EXCEPTIONS
                         try {
@@ -2581,7 +2622,7 @@ namespace rocket
                             error = true;
                         }
 #endif
-                        lock_state.lock();
+                        prev_lock_state.lock();
 
                         if (th->emission_aborted) {
                             break;
@@ -2591,7 +2632,7 @@ namespace rocket
                     current = current->next;
                 }
 
-                lock_state.unlock();
+                prev_lock_state.unlock();
             }
 
 #ifndef ROCKET_NO_EXCEPTIONS
@@ -2608,6 +2649,7 @@ namespace rocket
         }
 
     private:
+        using lock_and_swap = detail::lock_and_swap<ThreadingPolicy>;
         using shared_lock_state = detail::shared_lock_state<ThreadingPolicy>;
         using connection_base = detail::connection_base<ThreadingPolicy>;
         using functional_connection = detail::functional_connection<ThreadingPolicy, signature_type>;
@@ -2646,7 +2688,7 @@ namespace rocket
             intrusive_ptr<functional_connection> link{ new functional_connection };
 
             if constexpr (std::is_same_v<ThreadingPolicy, thread_safe_policy>) {
-                l->lock = lock_state.lock_primitive;
+                link->lock = lock_state.lock_primitive;
             }
 
             link->slot = std::move(slot);
