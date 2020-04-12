@@ -1926,47 +1926,6 @@ namespace rocket
         };
 
         template <class ThreadingPolicy>
-        struct mutex;
-
-        template <>
-        struct mutex<thread_unsafe_policy>
-        {
-            void lock() ROCKET_NOEXCEPT
-            {
-            }
-
-            bool try_lock() ROCKET_NOEXCEPT
-            {
-                return true;
-            }
-
-            void unlock() ROCKET_NOEXCEPT
-            {
-            }
-        };
-
-        template <>
-        struct mutex<thread_safe_policy>
-        {
-            void lock()
-            {
-                lock_primitive.lock();
-            }
-
-            bool try_lock()
-            {
-                return lock_primitive.try_lock();
-            }
-
-            void unlock()
-            {
-                lock_primitive.unlock();
-            }
-
-            std::mutex lock_primitive;
-        };
-
-        template <class ThreadingPolicy>
         struct connection_base;
 
         template <>
@@ -2480,17 +2439,13 @@ namespace rocket
 
         ~signal() ROCKET_NOEXCEPT
         {
-            std::scoped_lock<mutex> local{ local_mutex };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
-
             destroy();
         }
 
         signal(signal&& s)
         {
-            std::scoped_lock<mutex> local{ s.local_mutex };
-            std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, s.lock_state };
-            lock_state.swap(s.lock_state);
+            static_assert(std::is_same_v<ThreadingPolicy, thread_unsafe_policy>, "Thread safe signals can't be moved or swapped.");
 
             head = std::move(s.head);
             tail = std::move(s.tail);
@@ -2501,17 +2456,13 @@ namespace rocket
         {
             init();
 
-            std::scoped_lock<mutex> local{ s.local_mutex };
             std::scoped_lock<shared_lock_state> guard{ s.lock_state };
-
             copy(s);
         }
 
         signal& operator = (signal&& rhs)
         {
-            std::scoped_lock<mutex, mutex> local{ local_mutex, rhs.local_mutex };
-            std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
-            lock_state.swap(rhs.lock_state);
+            static_assert(std::is_same_v<ThreadingPolicy, thread_unsafe_policy>, "Thread safe signals can't be moved or swapped.");
 
             destroy();
             head = std::move(rhs.head);
@@ -2523,9 +2474,7 @@ namespace rocket
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
-                std::scoped_lock<mutex, mutex> local{ local_mutex, rhs.local_mutex };
                 std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
-
                 clear_without_lock();
                 copy(rhs);
             }
@@ -2536,7 +2485,6 @@ namespace rocket
         {
             assert(slot != nullptr);
 
-            std::scoped_lock<mutex> local{ local_mutex };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
 
             connection_base* base = make_link(
@@ -2587,19 +2535,15 @@ namespace rocket
 
         void clear() ROCKET_NOEXCEPT
         {
-            std::scoped_lock<mutex> local{ local_mutex };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
-
             clear_without_lock();
         }
 
         void swap(signal& other) ROCKET_NOEXCEPT
         {
-            if (this != &other) {
-                std::scoped_lock<mutex, mutex> local{ local_mutex, other.local_mutex };
-                std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, other.lock_state };
-                lock_state.swap(other.lock_state);
+            static_assert(std::is_same_v<ThreadingPolicy, thread_unsafe_policy>, "Thread safe signals can't be moved or swapped.");
 
+            if (this != &other) {
                 head.swap(other.head);
                 tail.swap(other.tail);
             }
@@ -2616,12 +2560,7 @@ namespace rocket
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
                 detail::abort_scope ascope{ th };
 
-                local_mutex.lock();
-
-                shared_lock_state prev_lock_state{ lock_state };
-                prev_lock_state.lock();
-
-                local_mutex.unlock();
+                lock_state.lock();
 
                 intrusive_ptr<connection_base> current{ head->next };
                 intrusive_ptr<connection_base> end{ tail };
@@ -2632,7 +2571,7 @@ namespace rocket
                     if (current->connected()) {
                         detail::connection_scope cscope{ current, th };
 
-                        prev_lock_state.unlock();
+                        lock_state.unlock();
 
 #ifndef ROCKET_NO_EXCEPTIONS
                         try {
@@ -2650,7 +2589,7 @@ namespace rocket
                             error = true;
                         }
 #endif
-                        prev_lock_state.lock();
+                        lock_state.lock();
 
                         if (th->emission_aborted) {
                             break;
@@ -2660,7 +2599,7 @@ namespace rocket
                     current = current->next;
                 }
 
-                prev_lock_state.unlock();
+                lock_state.unlock();
             }
 
 #ifndef ROCKET_NO_EXCEPTIONS
@@ -2677,7 +2616,6 @@ namespace rocket
         }
 
     private:
-        using mutex = detail::mutex<ThreadingPolicy>;
         using shared_lock_state = detail::shared_lock_state<ThreadingPolicy>;
         using connection_base = detail::connection_base<ThreadingPolicy>;
         using functional_connection = detail::functional_connection<ThreadingPolicy, signature_type>;
@@ -2745,7 +2683,6 @@ namespace rocket
         intrusive_ptr<connection_base> tail;
 
         mutable shared_lock_state lock_state;
-        mutable mutex local_mutex;
     };
 
     template <class Signature
