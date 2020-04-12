@@ -2480,19 +2480,17 @@ namespace rocket
 
         ~signal() ROCKET_NOEXCEPT
         {
-            get_swap_mutex()->lock();
+            std::scoped_lock<mutex> local{ local_mutex };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
-            get_swap_mutex()->unlock();
 
             destroy();
         }
 
         signal(signal&& s)
         {
-            get_swap_mutex()->lock();
+            std::scoped_lock<mutex> local{ s.local_mutex };
             std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, s.lock_state };
             lock_state.swap(s.lock_state);
-            get_swap_mutex()->unlock();
 
             head = std::move(s.head);
             tail = std::move(s.tail);
@@ -2503,19 +2501,17 @@ namespace rocket
         {
             init();
 
-            get_swap_mutex()->lock();
+            std::scoped_lock<mutex> local{ s.local_mutex };
             std::scoped_lock<shared_lock_state> guard{ s.lock_state };
-            get_swap_mutex()->unlock();
 
             copy(s);
         }
 
         signal& operator = (signal&& rhs)
         {
-            get_swap_mutex()->lock();
+            std::scoped_lock<mutex, mutex> local{ local_mutex, rhs.local_mutex };
             std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
             lock_state.swap(rhs.lock_state);
-            get_swap_mutex()->unlock();
 
             destroy();
             head = std::move(rhs.head);
@@ -2527,9 +2523,8 @@ namespace rocket
         signal& operator = (signal const& rhs)
         {
             if (this != &rhs) {
-                get_swap_mutex()->lock();
+                std::scoped_lock<mutex, mutex> local{ local_mutex, rhs.local_mutex };
                 std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, rhs.lock_state };
-                get_swap_mutex()->unlock();
 
                 clear_without_lock();
                 copy(rhs);
@@ -2541,9 +2536,8 @@ namespace rocket
         {
             assert(slot != nullptr);
 
-            get_swap_mutex()->lock();
+            std::scoped_lock<mutex> local{ local_mutex };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
-            get_swap_mutex()->unlock();
 
             connection_base* base = make_link(
                 first ? head->next : tail, std::move(slot));
@@ -2593,9 +2587,8 @@ namespace rocket
 
         void clear() ROCKET_NOEXCEPT
         {
-            get_swap_mutex()->lock();
+            std::scoped_lock<mutex> local{ local_mutex };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
-            get_swap_mutex()->unlock();
 
             clear_without_lock();
         }
@@ -2603,10 +2596,9 @@ namespace rocket
         void swap(signal& other) ROCKET_NOEXCEPT
         {
             if (this != &other) {
-                get_swap_mutex()->lock();
+                std::scoped_lock<mutex, mutex> local{ local_mutex, other.local_mutex };
                 std::scoped_lock<shared_lock_state, shared_lock_state> guard{ lock_state, other.lock_state };
                 lock_state.swap(other.lock_state);
-                get_swap_mutex()->unlock();
 
                 head.swap(other.head);
                 tail.swap(other.tail);
@@ -2624,12 +2616,12 @@ namespace rocket
                 detail::thread_local_data* th{ detail::get_thread_local_data() };
                 detail::abort_scope ascope{ th };
 
-                get_swap_mutex()->lock();
+                local_mutex.lock();
 
                 shared_lock_state prev_lock_state{ lock_state };
                 prev_lock_state.lock();
 
-                get_swap_mutex()->unlock();
+                local_mutex.unlock();
 
                 intrusive_ptr<connection_base> current{ head->next };
                 intrusive_ptr<connection_base> end{ tail };
@@ -2749,16 +2741,11 @@ namespace rocket
             return link;
         }
 
-        static mutex* get_swap_mutex()
-        {
-            static mutex swap_mutex;
-            return &swap_mutex;
-        }
-
         intrusive_ptr<connection_base> head;
         intrusive_ptr<connection_base> tail;
 
         mutable shared_lock_state lock_state;
+        mutable mutex local_mutex;
     };
 
     template <class Signature
