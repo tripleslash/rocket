@@ -435,6 +435,9 @@ int main() {
 #include <atomic>
 #include <limits>
 #include <mutex>
+#include <future>
+#include <unordered_map>
+#include <deque>
 
 #ifndef ROCKET_NO_STD_OPTIONAL
 #   include <optional>
@@ -1953,6 +1956,16 @@ namespace rocket
                 }
             }
 
+            std::thread::id get_tid() const ROCKET_NOEXCEPT
+            {
+                return std::thread::id{};
+            }
+
+            bool is_queued() const ROCKET_NOEXCEPT
+            {
+                return false;
+            }
+
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
         };
@@ -1984,10 +1997,23 @@ namespace rocket
                 }
             }
 
+            std::thread::id const& get_tid() const ROCKET_NOEXCEPT
+            {
+                return thread_id;
+            }
+
+            bool is_queued() const ROCKET_NOEXCEPT
+            {
+                return thread_id != std::thread::id{}
+                    && thread_id != std::this_thread::get_id();
+            }
+
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
 
             intrusive_ptr<shared_lock> lock;
+
+            std::thread::id thread_id;
         };
 
         template <class ThreadingPolicy, class T>
@@ -2095,6 +2121,45 @@ namespace rocket
             std::shared_ptr<Instance> shared;
             R(Class::*method)(Args...);
         };
+
+        struct call_queue
+        {
+            void put(std::thread::id tid, std::packaged_task<void()> task)
+            {
+                std::scoped_lock<std::mutex> guard{ mutex };
+                queue[tid].push_front(std::move(task));
+            }
+
+            void dispatch()
+            {
+                std::thread::id tid = std::this_thread::get_id();
+                std::forward_list<std::packaged_task<void()>> thread_queue;
+
+                {
+                    std::scoped_lock<std::mutex> guard{ mutex };
+
+                    auto iterator = queue.find(tid);
+                    if (iterator != queue.end()) {
+                        thread_queue.swap(iterator->second);
+                        queue.erase(iterator);
+                    }
+                }
+
+                for (auto& function : thread_queue) {
+                    function();
+                }
+            }
+
+        private:
+            std::mutex mutex;
+            std::unordered_map<std::thread::id, std::forward_list<std::packaged_task<void()>>> queue;
+        };
+
+        inline call_queue* get_call_queue() ROCKET_NOEXCEPT
+        {
+            static call_queue queue;
+            return &queue;
+        }
     }
 
     template <class Instance, class Class, class R, class... Args>
@@ -2113,6 +2178,11 @@ namespace rocket
     auto bind_shared_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
     {
         return detail::shared_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
+    }
+
+    inline void dispatch_queued_calls()
+    {
+        detail::get_call_queue()->dispatch();
     }
 
     struct connection
@@ -2421,6 +2491,13 @@ namespace rocket
         }
     };
 
+    enum connection_flags : unsigned int
+    {
+        direct_connection = 0,
+        queued_connection = 1 << 0,
+        connect_as_first_slot = 1 << 1,
+    };
+
     template <class Signature
         , class Collector = default_collector<detail::get_return_type<Signature>>
         , class ThreadingPolicy = thread_unsafe_policy>
@@ -2481,32 +2558,43 @@ namespace rocket
             return *this;
         }
 
-        connection connect(slot_type slot, bool first = false)
+        connection connect(slot_type slot, connection_flags flags = direct_connection)
         {
             assert(slot != nullptr);
 
-            std::scoped_lock<shared_lock_state> guard{ lock_state };
+            if constexpr (std::is_same_v<ThreadingPolicy, thread_unsafe_policy>) {
+                assert((flags & queued_connection) == 0);
+            }
 
-            connection_base* base = make_link(
-                first ? head->next : tail, std::move(slot));
+            std::thread::id tid{};
+
+            bool first = (flags & connect_as_first_slot) != 0;
+            
+            if ((flags & queued_connection) != 0) {
+                tid = std::this_thread::get_id();
+            }
+
+            std::scoped_lock<shared_lock_state> guard{ lock_state };
+            connection_base* base = make_link(first ? head->next : tail, std::move(slot), tid);
+
             return connection{ static_cast<void*>(base) };
         }
 
         template <class R1, class... Args1>
-        connection connect(R1(*method)(Args1...), bool first = false)
+        connection connect(R1(*method)(Args1...), connection_flags flags = direct_connection)
         {
             return connect([method](Args... args) {
                 return R((*method)(Args1(args)...));
-            }, first);
+            }, flags);
         }
 
         template <class Instance, class Class, class R1, class... Args1>
-        connection connect(Instance& object, R1(Class::*method)(Args1...), bool first = false)
+        connection connect(Instance& object, R1(Class::*method)(Args1...), connection_flags flags = direct_connection)
         {
             connection c{
                 connect([&object, method](Args... args) {
                     return R((object.*method)(Args1(args)...));
-                }, first)
+                }, flags)
             };
             if constexpr (std::is_base_of_v<Instance, trackable>) {
                 static_cast<trackable&>(object).add_tracked_connection(c);
@@ -2515,12 +2603,12 @@ namespace rocket
         }
 
         template <class Instance, class Class, class R1, class... Args1>
-        connection connect(Instance* object, R1(Class::*method)(Args1...), bool first = false)
+        connection connect(Instance* object, R1(Class::*method)(Args1...), connection_flags flags = direct_connection)
         {
             connection c{
                 connect([object, method](Args... args) {
                     return R((object->*method)(Args1(args)...));
-                }, first)
+                }, flags)
             };
             if constexpr (std::is_base_of_v<Instance, trackable>) {
                 static_cast<trackable*>(object)->add_tracked_connection(c);
@@ -2573,22 +2661,72 @@ namespace rocket
 
                         lock_state.unlock();
 
-#ifndef ROCKET_NO_EXCEPTIONS
-                        try {
-#endif
-                            functional_connection* conn = static_cast<
-                                functional_connection*>(static_cast<void*>(current));
+                        functional_connection* conn = static_cast<
+                            functional_connection*>(static_cast<void*>(current));
 
-                            if constexpr (std::is_void_v<R>) {
-                                conn->slot(args...); collector();
-                            } else {
-                                collector(conn->slot(args...));
-                            }
+                        if constexpr (std::is_same_v<ThreadingPolicy, thread_unsafe_policy>) {
 #ifndef ROCKET_NO_EXCEPTIONS
-                        } catch (...) {
-                            error = true;
-                        }
+                            try {
 #endif
+                                if constexpr (std::is_void_v<R>) {
+                                    conn->slot(args...); collector();
+                                } else {
+                                    collector(conn->slot(args...));
+                                }
+#ifndef ROCKET_NO_EXCEPTIONS
+                            } catch (...) {
+                                error = true;
+                            }
+#endif
+                        } else {
+                            if (current->is_queued()) {
+                                std::packaged_task<void()> task([current, &collector, args...] {
+                                    if (current->connected()) {
+                                        detail::thread_local_data* th{ detail::get_thread_local_data() };
+                                        detail::connection_scope cscope{ current, th };
+
+                                        functional_connection* conn = static_cast<
+                                            functional_connection*>(static_cast<void*>(current));
+
+                                        if constexpr (std::is_void_v<R>) {
+                                            conn->slot(args...);
+                                        } else {
+                                            collector(conn->slot(args...));
+                                        }
+                                    }
+                                });
+
+                                std::future<void> future{ task.get_future() };
+                                detail::get_call_queue()->put(current->get_tid(), std::move(task));
+
+                                if constexpr (!std::is_void_v<R>) {
+#ifndef ROCKET_NO_EXCEPTIONS
+                                    try {
+#endif
+                                        future.get();
+#ifndef ROCKET_NO_EXCEPTIONS
+                                    } catch (...) {
+                                        error = true;
+                                    }
+#endif
+                                }
+                            } else {
+#ifndef ROCKET_NO_EXCEPTIONS
+                                try {
+#endif
+                                    if constexpr (std::is_void_v<R>) {
+                                        conn->slot(args...); collector();
+                                    } else {
+                                        collector(conn->slot(args...));
+                                    }
+#ifndef ROCKET_NO_EXCEPTIONS
+                                } catch (...) {
+                                    error = true;
+                                }
+#endif
+                            }
+                        }
+
                         lock_state.lock();
 
                         if (th->emission_aborted) {
@@ -2658,17 +2796,18 @@ namespace rocket
                 functional_connection* conn = static_cast<
                     functional_connection*>(static_cast<void*>(current));
 
-                make_link(tail, conn->slot);
+                make_link(tail, conn->slot, conn->get_tid());
                 current = current->next;
             }
         }
 
-        functional_connection* make_link(connection_base* l, slot_type slot)
+        functional_connection* make_link(connection_base* l, slot_type slot, std::thread::id tid)
         {
             intrusive_ptr<functional_connection> link{ new functional_connection };
 
             if constexpr (std::is_same_v<ThreadingPolicy, thread_safe_policy>) {
                 link->lock = lock_state.lock_primitive;
+                link->thread_id = std::move(tid);
             }
 
             link->slot = std::move(slot);
