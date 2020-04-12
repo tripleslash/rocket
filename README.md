@@ -430,7 +430,9 @@ private:
     std::mutex mutex;
     std::forward_list<std::string> loadRequests;
 };
+```
 
+```
 class RenderThread {
 public:
     void initialize() {
