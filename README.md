@@ -23,6 +23,7 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 5. Support for automatic lifetime tracking of observers via `rocket::trackable`.
 6. Allows slots to get an instance to the `current_connection` object (see example 6).
 7. Allows slots to preemtively abort the emission of the signal (see example 7).
+8. Support for Qt-style `queued_connection`'s. If a slot is connected to a signal with this flag, the slots execution will be scheduled on the same thread that connected the slot to the signal (see example 8).
 
 
 ## Performance
@@ -371,4 +372,104 @@ int main() {
 
 // Output:
 //     First slot called. Aborting emission of other slots.
+```
+
+## 8. Using `queued_connection` to build a message queue between threads
+
+An observer can connect slots to a subject with the `queued_connection`-flag. Instead of calling the slot directly when the signal is invoked, rocket will schedule the execution in the same thread from where the observer called the `connect`-function. With this system it is extremely easy to build a message queue between different threads.
+
+Lets say we have a subject called `ModelFileLoaderThread`. It loads files from disc and does some expensive preprocessing.
+We also have an observer. The `RenderThread`. The `RenderThread` now wants to know whenever a new file is fully loaded, so it can display it in the scene.
+
+```
+class ModelFileLoaderThread {
+public:
+    void start() {
+        shouldRun = true;
+        thread = std::thread(&ModelFileLoaderThread::run, this);
+    }
+
+    void shutdown() {
+        shouldRun = false;
+        thread.join();
+    }
+
+    void pushLoadRequest(const std::string& fileName) {
+        std::scoped_lock<std::mutex> guard{ mutex };
+        loadRequests.push_front(fileName);
+    }
+
+private:
+    void run() {
+        while (shouldRun) {
+            std::forward_list<std::string> requests;
+            {
+                std::scoped_lock<std::mutex> guard{ mutex };
+                loadRequests.swap(requests);
+            }
+            for (auto& fileName : requests) {
+                ModelFilePtr modelFile = new ModelFile(fileName);
+
+                if (modelFile->loadModel()) {
+                    modelLoaded(modelFile);
+                } else {
+                    modelLoadFailed(fileName);
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    }
+    
+public:
+    rocket::thread_safe_signal<void(ModelFilePtr)> modelLoaded;
+    rocket::thread_safe_signal<void(std::string)> modelLoadFailed;
+
+private:
+    std::thread thread;
+    volatile bool shouldRun = false;
+    
+    std::mutex mutex;
+    std::forward_list<std::string> loadRequests;
+};
+```
+
+```
+class RenderThread {
+public:
+    void initialize() {
+        modelLoaderThread.start();
+
+        // Connect to the thread using queued_connection flag
+        modelLoaderThread.modelLoaded.connect(this, &RenderThread::onModelLoaded, rocket::queued_connection);
+        modelLoaderThread.modelLoadFailed.connect(this, &RenderThread::onModelLoadFailed, rocket::queued_connection);
+    }
+    
+    void shutdown() {
+        modelLoaderThread.shutdown();
+    }
+    
+    void render() {
+        rocket::dispatch_queued_calls();    //<-- This call is required so rocket can call the queued slots from this thread
+  
+        for (IRenderablePtr& renderable : renderables) {
+            renderable->render();
+        }
+    }
+    
+private:
+    // These slots are actually executed from inside the `rocket::dispatch_queued_calls` method
+
+    void onModelLoaded(ModelFilePtr const& modelFile) {
+        // No lock needed, because onModelLoaded is called on render thread!
+        renderables.push_back(new ModelRenderer(modelFile));
+    }
+
+    void onModelLoadFailed(std::string const& fileName) {
+        // Show log message
+    }
+    
+private:
+    std::list<IRenderablePtr> renderables;
+    ModelFileLoaderThread modelLoaderThread;
+};
 ```
