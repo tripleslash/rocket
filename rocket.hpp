@@ -1853,20 +1853,20 @@ namespace rocket
         template <>
         struct shared_lock_state<thread_unsafe_policy>
         {
-            void lock() ROCKET_NOEXCEPT
+            constexpr void lock() ROCKET_NOEXCEPT
             {
             }
 
-            bool try_lock() ROCKET_NOEXCEPT
+            constexpr bool try_lock() ROCKET_NOEXCEPT
             {
                 return true;
             }
 
-            void unlock() ROCKET_NOEXCEPT
+            constexpr void unlock() ROCKET_NOEXCEPT
             {
             }
 
-            void swap(shared_lock_state& s) ROCKET_NOEXCEPT
+            constexpr void swap(shared_lock_state& s) ROCKET_NOEXCEPT
             {
             }
         };
@@ -1961,7 +1961,7 @@ namespace rocket
                 return std::thread::id{};
             }
 
-            bool is_queued() const ROCKET_NOEXCEPT
+            constexpr bool is_queued() const ROCKET_NOEXCEPT
             {
                 return false;
             }
