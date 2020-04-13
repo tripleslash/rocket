@@ -2562,16 +2562,16 @@ namespace rocket
         {
             assert(slot != nullptr);
 
-            if constexpr (std::is_same_v<ThreadingPolicy, thread_unsafe_policy>) {
-                assert((flags & queued_connection) == 0);
-            }
-
             std::thread::id tid{};
 
             bool first = (flags & connect_as_first_slot) != 0;
             
-            if ((flags & queued_connection) != 0) {
-                tid = std::this_thread::get_id();
+            if constexpr (std::is_same_v<ThreadingPolicy, thread_safe_policy>) {
+                if ((flags & queued_connection) != 0) {
+                    tid = std::this_thread::get_id();
+                }
+            } else {
+                assert((flags & queued_connection) == 0);
             }
 
             std::scoped_lock<shared_lock_state> guard{ lock_state };
