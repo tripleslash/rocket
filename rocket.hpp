@@ -901,6 +901,11 @@ namespace rocket
             return ptr;
         }
 
+        pointer get() const volatile ROCKET_NOEXCEPT
+        {
+            return ptr;
+        }
+
         pointer detach() ROCKET_NOEXCEPT
         {
             pointer p = ptr;
@@ -909,6 +914,11 @@ namespace rocket
         }
 
         operator pointer() const ROCKET_NOEXCEPT
+        {
+            return ptr;
+        }
+
+        operator pointer() const volatile ROCKET_NOEXCEPT
         {
             return ptr;
         }
@@ -1979,7 +1989,7 @@ namespace rocket
 
             bool connected() const ROCKET_NOEXCEPT
             {
-                return static_cast<connection_base* volatile>(prev.get()) != nullptr;
+                return static_cast<intrusive_ptr<connection_base> volatile const*>(std::addressof(prev))->get() != nullptr;
             }
 
             void disconnect() ROCKET_NOEXCEPT
