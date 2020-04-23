@@ -39,7 +39,7 @@ Here are some performance benchmarks between boost::signals2 and rocket for regi
 
 ## 1. Creating your first signal
 
-```
+```cpp
 #include <iostream>
 
 int main() {
@@ -67,7 +67,7 @@ int main() {
 
 ## 2. Passing arguments to the signal
 
-```
+```cpp
 #include <string>
 #include <iostream>
 
@@ -87,7 +87,7 @@ int main() {
 
 ## 3. Connecting class methods to the signal
 
-```
+```cpp
 #include <string>
 #include <iostream>
 
@@ -140,7 +140,7 @@ int main() {
 
 ### Another example: Binding pure virtual interface methods
 
-```
+```cpp
 #include <string>
 #include <iostream>
 #include <memory>
@@ -190,7 +190,7 @@ What if we want to destroy our logger instance from example 3 but continue to us
 
 **Solution:** We use `scoped_connection`-objects to track our connected slots!
 
-```
+```cpp
 // [...] (See example 3)
 
 int main() {
@@ -223,7 +223,7 @@ int main() {
 
 The library can also track the lifetime of your class objects for you, if the connected slot instances inherit from the `rocket::trackable` base class.
 
-```
+```cpp
 // [...] (See example 3)
 
 struct ILogger : rocket::trackable {
@@ -263,7 +263,7 @@ The default value collector returns an `optional<T>` from a call to a `signal<T(
 
 However, this behaviour can be overriden at declaration time of the signal as well as during signal invocation.
 
-```
+```cpp
 #include <cmath>
 #include <iostream>
 
@@ -283,7 +283,7 @@ int main() {
 //     Computed value: 4
 ```
 
-```
+```cpp
 #include <cmath>
 #include <iostream>
 #include <iomanip>
@@ -323,7 +323,7 @@ int main() {
 
 Sometimes it is desirable to get an instance to the current connection object inside of a slot function. An example would be if you want to make a callback that only fires once and then disconnects itself from the signal that called it.
 
-```
+```cpp
 #include <iostream>
 
 int main() {
@@ -349,7 +349,7 @@ int main() {
 
 A slot can preemtively abort the emission of a signal if it needs to. This is useful in scenarios where your slot functions try to find some value and you just want the result of the first slot that found one and stop other slots from running.
 
-```
+```cpp
 #include <iostream>
 
 int main() {
@@ -381,7 +381,7 @@ An observer can connect slots to a subject with the `queued_connection`-flag. In
 Lets say we have a subject called `ModelFileLoaderThread`. It loads files from disc and does some expensive preprocessing.
 We also have an observer. The `RenderThread`. The `RenderThread` now wants to know whenever a new file is fully loaded, so it can display it in the scene.
 
-```
+```cpp
 class ModelFileLoaderThread {
 public:
     void start() {
@@ -433,7 +433,7 @@ private:
 };
 ```
 
-```
+```cpp
 class RenderThread {
 public:
     void initialize() {
