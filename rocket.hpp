@@ -567,7 +567,7 @@ namespace rocket
     {
     };
 
-    struct bad_optional_access : error
+    struct bad_optional_access final : error
     {
         const char* what() const ROCKET_NOEXCEPT override
         {
@@ -575,7 +575,7 @@ namespace rocket
         }
     };
 
-    struct invocation_slot_error : error
+    struct invocation_slot_error final : error
     {
         const char* what() const ROCKET_NOEXCEPT override
         {
@@ -586,7 +586,7 @@ namespace rocket
 
 #ifdef ROCKET_NO_STD_OPTIONAL
     template <class T>
-    struct optional
+    struct optional final
     {
         using value_type = T;
 
@@ -832,7 +832,7 @@ namespace rocket
 #endif
 
     template <class T>
-    struct intrusive_ptr
+    struct intrusive_ptr final
     {
         using value_type = T;
         using element_type = T;
@@ -1181,7 +1181,7 @@ namespace rocket
         return intrusive_ptr<U>{ dynamic_cast<U*>(p.get()) };
     }
 
-    struct ref_count
+    struct ref_count final
     {
         unsigned long addref() ROCKET_NOEXCEPT
         {
@@ -1202,7 +1202,7 @@ namespace rocket
         unsigned long count{ 0 };
     };
 
-    struct ref_count_atomic
+    struct ref_count_atomic final
     {
         unsigned long addref() ROCKET_NOEXCEPT
         {
@@ -1257,9 +1257,9 @@ namespace rocket
     };
 
     template <class T>
-    class stable_list
+    class stable_list final
     {
-        struct link_element : ref_counted<link_element>
+        struct link_element final : ref_counted<link_element>
         {
             link_element() ROCKET_NOEXCEPT = default;
 
@@ -1299,7 +1299,7 @@ namespace rocket
 
     public:
         template <class U>
-        struct iterator_base
+        struct iterator_base final
         {
             using iterator_category = std::bidirectional_iterator_tag;
             using value_type = std::remove_const_t<U>;
@@ -1852,7 +1852,7 @@ namespace rocket
         struct expand_signature;
 
         template <class R, class... Args>
-        struct expand_signature<R(Args...)>
+        struct expand_signature<R(Args...)> final
         {
             using return_type = R;
             using signature_type = R(Args...);
@@ -1861,7 +1861,7 @@ namespace rocket
         template <class Signature>
         using get_return_type = typename expand_signature<Signature>::return_type;
 
-        struct shared_lock : ref_counted<shared_lock, ref_count_atomic>
+        struct shared_lock final : ref_counted<shared_lock, ref_count_atomic>
         {
             std::mutex mutex;
         };
@@ -1870,7 +1870,7 @@ namespace rocket
         struct shared_lock_state;
 
         template <>
-        struct shared_lock_state<thread_unsafe_policy>
+        struct shared_lock_state<thread_unsafe_policy> final
         {
             constexpr void lock() ROCKET_NOEXCEPT
             {
@@ -1891,7 +1891,7 @@ namespace rocket
         };
 
         template <>
-        struct shared_lock_state<thread_safe_policy>
+        struct shared_lock_state<thread_safe_policy> final
         {
             shared_lock_state()
                 : lock_primitive{ new shared_lock }
@@ -2076,13 +2076,13 @@ namespace rocket
         };
 
         template <class ThreadingPolicy, class T>
-        struct functional_connection : connection_base<ThreadingPolicy>
+        struct functional_connection final : connection_base<ThreadingPolicy>
         {
             std::function<T> slot;
         };
 
         // Should make sure that this is POD
-        struct thread_local_data
+        struct thread_local_data final
         {
             void* current_connection;
             bool emission_aborted;
@@ -2094,7 +2094,7 @@ namespace rocket
             return &th;
         }
 
-        struct connection_scope
+        struct connection_scope final
         {
             connection_scope(void* base, thread_local_data* th) ROCKET_NOEXCEPT
                 : th{ th }
@@ -2112,7 +2112,7 @@ namespace rocket
             void* prev;
         };
 
-        struct abort_scope
+        struct abort_scope final
         {
             abort_scope(thread_local_data* th) ROCKET_NOEXCEPT
                 : th{ th }
@@ -2131,7 +2131,7 @@ namespace rocket
         };
 
         template <class Instance, class Class, class R, class... Args>
-        struct weak_mem_fn
+        struct weak_mem_fn final
         {
             explicit weak_mem_fn(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
                 : weak{ std::move(c) }
@@ -2162,7 +2162,7 @@ namespace rocket
         };
 
         template <class Instance, class Class, class R, class... Args>
-        struct shared_mem_fn
+        struct shared_mem_fn final
         {
             explicit shared_mem_fn(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
                 : shared{ std::move(c) }
@@ -2181,7 +2181,7 @@ namespace rocket
             R(Class::*method)(Args...);
         };
 
-        struct call_queue
+        struct call_queue final
         {
             void put(std::thread::id tid, std::packaged_task<void()> task)
             {
@@ -2438,7 +2438,7 @@ namespace rocket
         }
     };
 
-    struct scoped_connection : connection
+    struct scoped_connection final : connection
     {
         scoped_connection() ROCKET_NOEXCEPT = default;
 
@@ -2492,7 +2492,7 @@ namespace rocket
         scoped_connection& operator = (scoped_connection const&) = delete;
     };
 
-    struct scoped_connection_container
+    struct scoped_connection_container final
     {
         scoped_connection_container() = default;
         ~scoped_connection_container() = default;
@@ -2577,7 +2577,7 @@ namespace rocket
         detail::get_thread_local_data()->emission_aborted = true;
     }
 
-    struct scoped_connection_blocker
+    struct scoped_connection_blocker final
     {
         scoped_connection_blocker(connection c)
             : conn{ std::move(c) }
@@ -2598,7 +2598,7 @@ namespace rocket
     };
 
     template <class T>
-    struct default_collector : last<optional<T>>
+    struct default_collector final : last<optional<T>>
     {
     };
 
@@ -2632,7 +2632,7 @@ namespace rocket
     struct signal;
 
     template <class Collector, class ThreadingPolicy, class R, class... Args>
-    struct signal<R(Args...), Collector, ThreadingPolicy>
+    struct signal<R(Args...), Collector, ThreadingPolicy> final
     {
         using signature_type = R(Args...);
         using slot_type = std::function<signature_type>;
