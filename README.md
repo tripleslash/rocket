@@ -116,7 +116,7 @@ public:
         // This is all your need to do for the most common case, if you want the
         // connection to be broken when the observer is destroyed.
         connections += {
-            subject.nameChanged.connect(this, &Observer::onNameChanged)
+            subject.nameChanged.connect<&Observer::onNameChanged>(this)
         };
     }
 
@@ -175,7 +175,7 @@ int main() {
     std::unique_ptr<App> app = std::make_unique<App>();
 
     std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
-    app->onSuccess.connect(logger.get(), &ILogger::logMessage);
+    app->onSuccess.connect<&ILogger::logMessage>(logger.get());
 
     app->run();
 }
@@ -440,8 +440,8 @@ public:
         modelLoaderThread.start();
 
         // Connect to the thread using queued_connection flag
-        modelLoaderThread.modelLoaded.connect(this, &RenderThread::onModelLoaded, rocket::queued_connection);
-        modelLoaderThread.modelLoadFailed.connect(this, &RenderThread::onModelLoadFailed, rocket::queued_connection);
+        modelLoaderThread.modelLoaded.connect<&RenderThread::onModelLoaded>(this, rocket::queued_connection);
+        modelLoaderThread.modelLoadFailed.connect<&RenderThread::onModelLoadFailed>(this, rocket::queued_connection);
     }
     
     void shutdown() {
