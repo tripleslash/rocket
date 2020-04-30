@@ -2593,8 +2593,16 @@ namespace rocket
         template <class R1, class... Args1>
         connection connect(R1(*method)(Args1...), connection_flags flags = direct_connection)
         {
-            return connect([method](Args... args) {
+            return connect([method](Args const&... args) {
                 return R((*method)(Args1(args)...));
+            }, flags);
+        }
+
+        template <auto Method>
+        connection connect(connection_flags flags = direct_connection)
+        {
+            return connect([](Args const&... args) {
+                return R((*Method)(args...));
             }, flags);
         }
 
@@ -2602,8 +2610,22 @@ namespace rocket
         connection connect(Instance& object, R1(Class::*method)(Args1...), connection_flags flags = direct_connection)
         {
             connection c{
-                connect([&object, method](Args... args) {
+                connect([&object, method](Args const&... args) {
                     return R((object.*method)(Args1(args)...));
+                }, flags)
+            };
+            if constexpr (std::is_base_of_v<Instance, trackable>) {
+                static_cast<trackable&>(object).add_tracked_connection(c);
+            }
+            return c;
+        }
+
+        template <auto Method, class Instance>
+        connection connect(Instance& object, connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect([&object](Args const&... args) {
+                    return R((object.*Method)(args...));
                 }, flags)
             };
             if constexpr (std::is_base_of_v<Instance, trackable>) {
@@ -2616,8 +2638,22 @@ namespace rocket
         connection connect(Instance* object, R1(Class::*method)(Args1...), connection_flags flags = direct_connection)
         {
             connection c{
-                connect([object, method](Args... args) {
+                connect([object, method](Args const&... args) {
                     return R((object->*method)(Args1(args)...));
+                }, flags)
+            };
+            if constexpr (std::is_base_of_v<Instance, trackable>) {
+                static_cast<trackable*>(object)->add_tracked_connection(c);
+            }
+            return c;
+        }
+
+        template <auto Method, class Instance>
+        connection connect(Instance* object, connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect([object](Args const&... args) {
+                    return R((object->*Method)(args...));
                 }, flags)
             };
             if constexpr (std::is_base_of_v<Instance, trackable>) {
@@ -2841,7 +2877,7 @@ namespace rocket
     template <class Instance, class Class, class R, class... Args>
     std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
     {
-        return [&object, method](Args... args) {
+        return [&object, method](Args const&... args) {
             return (object.*method)(args...);
         };
     }
@@ -2849,7 +2885,7 @@ namespace rocket
     template <class Instance, class Class, class R, class... Args>
     std::function<R(Args...)> slot(Instance* object, R(Class::*method)(Args...))
     {
-        return [object, method](Args... args) {
+        return [object, method](Args const&... args) {
             return (object->*method)(args...);
         };
     }
