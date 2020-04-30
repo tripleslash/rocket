@@ -968,6 +968,15 @@ namespace rocket
             return *this;
         }
 
+        intrusive_ptr volatile& operator = (std::nullptr_t) volatile ROCKET_NOEXCEPT
+        {
+            if (ptr) {
+                ptr->release();
+                ptr = nullptr;
+            }
+            return *this;
+        }
+
         intrusive_ptr& operator = (intrusive_ptr const& p) ROCKET_NOEXCEPT
         {
             return (*this = p.ptr);
@@ -1948,7 +1957,7 @@ namespace rocket
         {
             virtual ~connection_base() ROCKET_NOEXCEPT = default;
 
-            bool connected() const ROCKET_NOEXCEPT
+            bool is_connected() const ROCKET_NOEXCEPT
             {
                 return prev != nullptr;
             }
@@ -1978,6 +1987,8 @@ namespace rocket
 
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
+
+            bool is_blocked{ false };
         };
 
         template <>
@@ -1987,9 +1998,9 @@ namespace rocket
         {
             virtual ~connection_base() ROCKET_NOEXCEPT = default;
 
-            bool connected() const ROCKET_NOEXCEPT
+            bool is_connected() const ROCKET_NOEXCEPT
             {
-                return static_cast<intrusive_ptr<connection_base> volatile const*>(std::addressof(prev))->get() != nullptr;
+                return static_cast<intrusive_ptr<connection_base> volatile const&>(prev).get() != nullptr;
             }
 
             void disconnect() ROCKET_NOEXCEPT
@@ -2003,7 +2014,7 @@ namespace rocket
                     // To mark a connection as disconnected, just set its prev-link to null but
                     // leave the next link alive so we can still traverse through the connections
                     // if the slot gets disconnected during signal emit.
-                    prev = nullptr;
+                    static_cast<intrusive_ptr<connection_base> volatile&>(prev) = nullptr;
                 }
             }
 
@@ -2024,6 +2035,8 @@ namespace rocket
             intrusive_ptr<shared_lock> lock;
 
             std::thread::id thread_id;
+
+            volatile bool is_blocked{ false };
         };
 
         template <class ThreadingPolicy, class T>
@@ -2255,10 +2268,10 @@ namespace rocket
 
         explicit operator bool() const ROCKET_NOEXCEPT
         {
-            return connected();
+            return is_connected();
         }
 
-        bool connected() const ROCKET_NOEXCEPT
+        bool is_connected() const ROCKET_NOEXCEPT
         {
             if (base != nullptr) {
                 auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
@@ -2266,13 +2279,63 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (safe->is_thread_safe) {
-                    return safe->connected();
+                if (!unsafe->is_thread_safe) [[likely]] {
+                    return unsafe->is_connected();
                 } else {
-                    return unsafe->connected();
+                    return safe->is_connected();
                 }
             }
             return false;
+        }
+
+        bool is_blocked() const ROCKET_NOEXCEPT
+        {
+            if (base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (!unsafe->is_thread_safe) [[likely]] {
+                    return unsafe->is_blocked;
+                } else {
+                    return safe->is_blocked;
+                }
+            }
+            return false;
+        }
+
+        void block() ROCKET_NOEXCEPT
+        {
+            if (base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (!unsafe->is_thread_safe) [[likely]] {
+                    unsafe->is_blocked = true;
+                } else {
+                    std::scoped_lock<std::mutex> guard{ safe->lock->mutex };
+                    safe->is_blocked = true;
+                }
+            }
+        }
+
+        void unblock() ROCKET_NOEXCEPT
+        {
+            if (base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (!unsafe->is_thread_safe) [[likely]] {
+                    unsafe->is_blocked = false;
+                } else {
+                    safe->is_blocked = false;
+                }
+            }
         }
 
         void disconnect() ROCKET_NOEXCEPT
@@ -2283,10 +2346,10 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (safe->is_thread_safe) {
-                    safe->disconnect();
-                } else {
+                if (!unsafe->is_thread_safe) [[likely]] {
                     unsafe->disconnect();
+                } else {
+                    safe->disconnect();
                 }
 
                 release();
@@ -2305,6 +2368,8 @@ namespace rocket
     private:
         void* base;
 
+        friend struct scoped_connection_blocker;
+
         void addref() ROCKET_NOEXCEPT
         {
             if (base != nullptr) {
@@ -2313,10 +2378,10 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (safe->is_thread_safe) {
-                    safe->addref();
-                } else {
+                if (!unsafe->is_thread_safe) [[likely]] {
                     unsafe->addref();
+                } else {
+                    safe->addref();
                 }
             }
         }
@@ -2329,10 +2394,10 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (safe->is_thread_safe) {
-                    safe->release();
-                } else {
+                if (!unsafe->is_thread_safe) [[likely]] {
                     unsafe->release();
+                } else {
+                    safe->release();
                 }
 
                 base = nullptr;
@@ -2478,6 +2543,46 @@ namespace rocket
     {
         detail::get_thread_local_data()->emission_aborted = true;
     }
+
+    struct scoped_connection_blocker
+    {
+        scoped_connection_blocker(connection& c)
+        {
+            if (c.base != nullptr) {
+                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(c.base) };
+                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(c.base) };
+
+                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
+
+                if (!unsafe->is_thread_safe) [[likely]] {
+                    if (!unsafe->is_blocked) [[likely]] {
+                        unsafe->is_blocked = true;
+                        connection = &c;
+                    }
+                } else {
+                    std::scoped_lock<std::mutex> guard{ safe->lock->mutex };
+
+                    if (!safe->is_blocked) [[likely]] {
+                        safe->is_blocked = true;
+                        connection = &c;
+                    }
+                }
+            }
+        }
+
+        ~scoped_connection_blocker()
+        {
+            if (connection != nullptr) {
+                connection->unblock();
+            }
+        }
+
+    private:
+        scoped_connection_blocker(scoped_connection_blocker const&) = delete;
+        scoped_connection_blocker& operator = (scoped_connection_blocker const&) = delete;
+
+        connection* connection{ nullptr };
+    };
 
     template <class T>
     struct default_collector : last<optional<T>>
@@ -2702,7 +2807,7 @@ namespace rocket
                 while (current != end) {
                     assert(current != nullptr);
 
-                    if (current->connected()) {
+                    if (current->is_connected() && !current->is_blocked) {
                         detail::connection_scope cscope{ current, th };
 
                         lock_state.unlock();
@@ -2727,7 +2832,7 @@ namespace rocket
                         } else {
                             if (current->is_queued()) {
                                 std::packaged_task<void()> task([current, &collector, args...] {
-                                    if (current->connected()) {
+                                    if (current->is_connected()) {
                                         detail::thread_local_data* th{ detail::get_thread_local_data() };
                                         detail::connection_scope cscope{ current, th };
 
