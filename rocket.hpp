@@ -1216,7 +1216,7 @@ namespace rocket
 
         unsigned long get() const ROCKET_NOEXCEPT
         {
-            return count.load();
+            return count.load(std::memory_order_relaxed);
         }
 
     private:
@@ -1985,10 +1985,27 @@ namespace rocket
                 return false;
             }
 
+            void block() ROCKET_NOEXCEPT
+            {
+                ++block_count;
+            }
+
+            void unblock() ROCKET_NOEXCEPT
+            {
+                if (block_count > 0) {
+                    --block_count;
+                }
+            }
+
+            bool is_blocked() const ROCKET_NOEXCEPT
+            {
+                return block_count > 0;
+            }
+
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
 
-            bool is_blocked{ false };
+            unsigned long block_count{ 0 };
         };
 
         template <>
@@ -2029,6 +2046,25 @@ namespace rocket
                     && thread_id != std::this_thread::get_id();
             }
 
+            void block() ROCKET_NOEXCEPT
+            {
+                std::scoped_lock<std::mutex> guard{ lock->mutex };
+                ++block_count;
+            }
+
+            void unblock() ROCKET_NOEXCEPT
+            {
+                std::scoped_lock<std::mutex> guard{ lock->mutex };
+                if (block_count > 0) {
+                    --block_count;
+                }
+            }
+
+            bool is_blocked() const ROCKET_NOEXCEPT
+            {
+                return (*static_cast<unsigned long const volatile*>(&block_count)) > 0;
+            }
+
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
 
@@ -2036,7 +2072,7 @@ namespace rocket
 
             std::thread::id thread_id;
 
-            volatile bool is_blocked{ false };
+            unsigned long block_count{ 0 };
         };
 
         template <class ThreadingPolicy, class T>
@@ -2297,9 +2333,9 @@ namespace rocket
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
                 if (!unsafe->is_thread_safe) [[likely]] {
-                    return unsafe->is_blocked;
+                    return unsafe->is_blocked();
                 } else {
-                    return safe->is_blocked;
+                    return safe->is_blocked();
                 }
             }
             return false;
@@ -2314,10 +2350,9 @@ namespace rocket
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
                 if (!unsafe->is_thread_safe) [[likely]] {
-                    unsafe->is_blocked = true;
+                    unsafe->block();
                 } else {
-                    std::scoped_lock<std::mutex> guard{ safe->lock->mutex };
-                    safe->is_blocked = true;
+                    safe->block();
                 }
             }
         }
@@ -2331,9 +2366,9 @@ namespace rocket
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
                 if (!unsafe->is_thread_safe) [[likely]] {
-                    unsafe->is_blocked = false;
+                    unsafe->unblock();
                 } else {
-                    safe->is_blocked = false;
+                    safe->unblock();
                 }
             }
         }
@@ -2367,8 +2402,6 @@ namespace rocket
 
     private:
         void* base;
-
-        friend struct scoped_connection_blocker;
 
         void addref() ROCKET_NOEXCEPT
         {
@@ -2546,42 +2579,22 @@ namespace rocket
 
     struct scoped_connection_blocker
     {
-        scoped_connection_blocker(connection& c)
+        scoped_connection_blocker(connection c)
+            : conn{ std::move(c) }
         {
-            if (c.base != nullptr) {
-                auto safe{ static_cast<detail::connection_base<thread_safe_policy>*>(c.base) };
-                auto unsafe{ static_cast<detail::connection_base<thread_unsafe_policy>*>(c.base) };
-
-                assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
-
-                if (!unsafe->is_thread_safe) [[likely]] {
-                    if (!unsafe->is_blocked) [[likely]] {
-                        unsafe->is_blocked = true;
-                        connection = &c;
-                    }
-                } else {
-                    std::scoped_lock<std::mutex> guard{ safe->lock->mutex };
-
-                    if (!safe->is_blocked) [[likely]] {
-                        safe->is_blocked = true;
-                        connection = &c;
-                    }
-                }
-            }
+            conn.block();
         }
 
         ~scoped_connection_blocker()
         {
-            if (connection != nullptr) {
-                connection->unblock();
-            }
+            conn.unblock();
         }
 
     private:
         scoped_connection_blocker(scoped_connection_blocker const&) = delete;
         scoped_connection_blocker& operator = (scoped_connection_blocker const&) = delete;
 
-        connection* connection{ nullptr };
+        connection conn;
     };
 
     template <class T>
@@ -2807,7 +2820,7 @@ namespace rocket
                 while (current != end) {
                     assert(current != nullptr);
 
-                    if (current->is_connected() && !current->is_blocked) {
+                    if (current->prev != nullptr && current->block_count == 0) {
                         detail::connection_scope cscope{ current, th };
 
                         lock_state.unlock();
