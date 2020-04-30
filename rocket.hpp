@@ -2614,7 +2614,7 @@ namespace rocket
                     return R((object.*method)(Args1(args)...));
                 }, flags)
             };
-            if constexpr (std::is_base_of_v<Instance, trackable>) {
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                 static_cast<trackable&>(object).add_tracked_connection(c);
             }
             return c;
@@ -2628,7 +2628,7 @@ namespace rocket
                     return R((object.*Method)(args...));
                 }, flags)
             };
-            if constexpr (std::is_base_of_v<Instance, trackable>) {
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                 static_cast<trackable&>(object).add_tracked_connection(c);
             }
             return c;
@@ -2642,7 +2642,7 @@ namespace rocket
                     return R((object->*method)(Args1(args)...));
                 }, flags)
             };
-            if constexpr (std::is_base_of_v<Instance, trackable>) {
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                 static_cast<trackable*>(object)->add_tracked_connection(c);
             }
             return c;
@@ -2656,7 +2656,7 @@ namespace rocket
                     return R((object->*Method)(args...));
                 }, flags)
             };
-            if constexpr (std::is_base_of_v<Instance, trackable>) {
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                 static_cast<trackable*>(object)->add_tracked_connection(c);
             }
             return c;
