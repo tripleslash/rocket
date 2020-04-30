@@ -2579,13 +2579,13 @@ namespace rocket
 
     struct scoped_connection_blocker final
     {
-        scoped_connection_blocker(connection c)
+        scoped_connection_blocker(connection c) ROCKET_NOEXCEPT
             : conn{ std::move(c) }
         {
             conn.block();
         }
 
-        ~scoped_connection_blocker()
+        ~scoped_connection_blocker() ROCKET_NOEXCEPT
         {
             conn.unblock();
         }
