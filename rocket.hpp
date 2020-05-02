@@ -444,7 +444,6 @@ int main() {
 #include <exception>
 #include <type_traits>
 #include <cassert>
-#include <chrono>
 #include <utility>
 #include <memory>
 #include <functional>
@@ -457,6 +456,10 @@ int main() {
 #include <future>
 #include <unordered_map>
 #include <deque>
+
+#ifndef ROCKET_NO_TIMERS
+#   include <chrono>
+#endif
 
 #ifndef ROCKET_NO_STD_OPTIONAL
 #   include <optional>
