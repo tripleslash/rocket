@@ -525,6 +525,8 @@ private:
     }
 
 private:
+    rocket::scoped_connection_container connections;
+
     std::list<IRenderablePtr> renderables;
     ModelFileLoaderThread modelLoaderThread;
 };
