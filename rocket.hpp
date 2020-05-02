@@ -2648,6 +2648,14 @@ namespace rocket
                 return connection{ static_cast<void*>(base) };
             }
 
+            template <auto Method>
+            connection set_interval(unsigned long interval_ms)
+            {
+                return set_interval([] {
+                    (*Method)();
+                }, interval_ms);
+            }
+
             template <class Instance, class Class, class R>
             connection set_interval(Instance& object, R(Class::* method)(), unsigned long interval_ms)
             {
@@ -2711,6 +2719,14 @@ namespace rocket
                 auto expires_at = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
                 connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), false);
                 return connection{ static_cast<void*>(base) };
+            }
+
+            template <auto Method>
+            connection set_timeout(unsigned long timeout_ms)
+            {
+                return set_timeout([] {
+                    (*Method)();
+                }, timeout_ms);
             }
 
             template <class Instance, class Class, class R>
@@ -2819,6 +2835,9 @@ namespace rocket
                                 timed_connection*>(static_cast<void*>(current));
 
                             if (conn->expires_at <= now) {
+                                if (!conn->is_repeat) {
+                                    conn->disconnect();
+                                }
 #ifndef ROCKET_NO_EXCEPTIONS
                                 try {
 #endif
@@ -2828,10 +2847,6 @@ namespace rocket
                                     error = true;
                                 }
 #endif
-                                if (!conn->is_repeat) {
-                                    conn->disconnect();
-                                }
-
                                 if (th->emission_aborted) {
                                     break;
                                 }
@@ -2961,6 +2976,12 @@ namespace rocket
         return detail::get_timer_queue()->set_interval(std::move(slot), interval_ms);
     }
 
+    template <auto Method>
+    inline connection set_interval(unsigned long interval_ms)
+    {
+        return detail::get_timer_queue()->template set_interval<Method>(interval_ms);
+    }
+
     template <class Instance, class Class, class R>
     inline connection set_interval(Instance& object, R(Class::*method)(), unsigned long interval_ms)
     {
@@ -2988,6 +3009,12 @@ namespace rocket
     inline connection set_timeout(std::function<void()> slot, unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->set_timeout(std::move(slot), timeout_ms);
+    }
+
+    template <auto Method>
+    inline connection set_timeout(unsigned long timeout_ms)
+    {
+        return detail::get_timer_queue()->template set_timeout<Method>(timeout_ms);
     }
 
     template <class Instance, class Class, class R>
