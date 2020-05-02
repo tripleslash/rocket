@@ -21,9 +21,10 @@ The API was heavily inspired by boost::signals2. If you are already familiar wit
 3. The signals are reentrant. This property is a must have for any event processing library because it must be possible to recursively emit signals, or disconnect slots from within a signal handler.
 4. Support for smart `scoped_connection`'s and `scoped_connection_container`'s.
 5. Support for automatic lifetime tracking of observers via `rocket::trackable`.
-6. Allows slots to get an instance to the `current_connection` object (see example 6).
-7. Allows slots to preemtively abort the emission of the signal (see example 7).
-8. Support for Qt-style `queued_connection`'s. If a slot is connected to a signal with this flag, the slots execution will be scheduled on the same thread that connected the slot to the signal (see example 8).
+6. Allows slots to get an instance to the `current_connection` object (see example 5).
+7. Allows slots to preemtively abort the emission of the signal (see example 6).
+8. Support for Qt-style `queued_connection`'s. If a slot is connected to a signal with this flag, the slots execution will be scheduled on the same thread that connected the slot to the signal (see example 7).
+9. Supports `set_interval` and `set_timeout` functions to connect periodic events to the current threads dispatch queue (you can opt-out of this feature by defining `ROCKET_NO_TIMERS`).
 
 
 ## Performance
@@ -42,7 +43,8 @@ Here are some performance benchmarks between boost::signals2 and rocket for regi
 ```cpp
 #include <iostream>
 
-int main() {
+int main()
+{
     rocket::signal<void()> thread_unsafe_signal;
     rocket::thread_safe_signal<void()> thread_safe_signal;
 
@@ -65,27 +67,7 @@ int main() {
 //     Second handler called!
 ```
 
-## 2. Passing arguments to the signal
-
-```cpp
-#include <string>
-#include <iostream>
-
-int main() {
-    rocket::signal<void(std::string)> my_signal;
-   
-    my_signal.connect([](const std::string& argument) {
-        std::cout << "Handler called with arg: " << argument << std::endl;
-    });
-   
-    my_signal("Hello world");
-}
-
-// Output:
-//     Handler called with arg: Hello world
-```
-
-## 3. Connecting class methods to the signal
+## 2. Connecting class methods to the signal
 
 ```cpp
 #include <string>
@@ -93,7 +75,8 @@ int main() {
 
 class Subject {
 public:
-    void setName(const std::string& newName) {
+    void setName(const std::string& newName)
+    {
         if (name != newName) {
             name = newName;
             nameChanged(newName);
@@ -109,7 +92,8 @@ private:
 
 class Observer {
 public:
-    Observer(Subject& subject) {
+    Observer(Subject& subject)
+    {
         // Register the `onNameChanged`-function of this object as a listener and
         // store the resultant connection object in the listener's connection set.
 
@@ -120,7 +104,8 @@ public:
         };
     }
 
-    void onNameChanged(const std::string& name) {
+    void onNameChanged(const std::string& name)
+    {
         std::cout << "Subject received new name: " << name << std::endl;
     }
 
@@ -128,7 +113,8 @@ private:
     rocket::scoped_connection_container connections;
 };
 
-int main() {
+int main()
+{
     Subject s;
     Observer o{ s };
     s.setName("Peter");
@@ -159,19 +145,24 @@ public:
 
 class App {
 public:
-    void run() {
+    void run()
+    {
         if (work()) {
             onSuccess("I finished my work!");
         }
     }
-    bool work() {
+    
+    bool work()
+    {
         return true;
     }
+    
 public:
     rocket::signal<void(std::string)> onSuccess;
 };
 
-int main() {
+int main()
+{
     std::unique_ptr<App> app = std::make_unique<App>();
 
     std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
@@ -184,16 +175,17 @@ int main() {
 //     New log message: I finished my work!
 ```
 
-## 4.a Handling lifetime and scope of connection objects
+## 3.a Handling lifetime and scope of connection objects
 
-What if we want to destroy our logger instance from example 3 but continue to use the app instance?
+What if we want to destroy our logger instance from example 2 but continue to use the app instance?
 
 **Solution:** We use `scoped_connection`-objects to track our connected slots!
 
 ```cpp
-// [...] (See example 3)
+// [...] (See example 2)
 
-int main() {
+int main()
+{
     std::unique_ptr<App> app = std::make_unique<App>();
     {
         std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
@@ -210,7 +202,7 @@ int main() {
     //
     // This would normally cause a crash / undefined behavior because the logger
     // instance is destroyed at this point, but App::onSuccess still referenced it
-    // in example 3.
+    // in example 2.
    
     app->run();
 }
@@ -219,20 +211,22 @@ int main() {
 //     New log message: I finished my work!
 ```
 
-## 4.b Advanced lifetime tracking
+## 3.b Advanced lifetime tracking
 
 The library can also track the lifetime of your class objects for you, if the connected slot instances inherit from the `rocket::trackable` base class.
 
 ```cpp
-// [...] (See example 3)
+// [...] (See example 2)
 
-struct ILogger : rocket::trackable {
+struct ILogger : rocket::trackable
+{
     virtual void logMessage(const std::string& message) = 0;
 };
 
-// [...] (See example 3)
+// [...] (See example 2)
 
-int main() {
+int main()
+{
     std::unique_ptr<App> app = std::make_unique<App>();
     {
         std::unique_ptr<ILogger> logger = std::make_unique<ConsoleLogger>();
@@ -248,13 +242,13 @@ int main() {
     //
     // This would normally cause a crash / undefined behavior because the logger
     // instance is destroyed at this point, but App::onSuccess still referenced it
-    // in example 3.
+    // in example 2.
     
     app->run();
 }
 ```
 
-## 5. Getting return values from a call to a signal
+## 4. Getting return values from a call to a signal
 
 Slots can also return values to the emitting signal.
 Because a signal can have several slots attached to it, the return values are collected by using the so called `value collectors`.
@@ -267,7 +261,8 @@ However, this behaviour can be overriden at declaration time of the signal as we
 #include <cmath>
 #include <iostream>
 
-int main() {
+int main()
+{
     rocket::signal<int(int)> signal;
     
     // The library supports argument and return type transformation between the
@@ -288,7 +283,8 @@ int main() {
 #include <iostream>
 #include <iomanip>
 
-int main() {
+int main()
+{
     // Because we set `rocket::range` as the value collector for this signal
     // calling operator() now returns the return values of all connected slots.
     
@@ -319,14 +315,15 @@ int main() {
 //     Last return value: -1.00
 ```
 
-## 6. Accessing the current connection object inside a slot
+## 5. Accessing the current connection object inside a slot
 
 Sometimes it is desirable to get an instance to the current connection object inside of a slot function. An example would be if you want to make a callback that only fires once and then disconnects itself from the signal that called it.
 
 ```cpp
 #include <iostream>
 
-int main() {
+int main()
+{
     rocket::signal<void()> signal;
 
     signal.connect([] {
@@ -345,14 +342,15 @@ int main() {
 //     Slot called. Now disconnecting...
 ```
 
-## 7. Preemtively aborting the emission of a signal
+## 6. Preemtively aborting the emission of a signal
 
 A slot can preemtively abort the emission of a signal if it needs to. This is useful in scenarios where your slot functions try to find some value and you just want the result of the first slot that found one and stop other slots from running.
 
 ```cpp
 #include <iostream>
 
-int main() {
+int main()
+{
     rocket::signal<void()> signal;
     
     signal.connect([] {
@@ -374,7 +372,7 @@ int main() {
 //     First slot called. Aborting emission of other slots.
 ```
 
-## 8. Using `queued_connection` to build a message queue between threads
+## 7. Using `queued_connection` to build a message queue between threads
 
 An observer can connect slots to a subject with the `queued_connection`-flag. Instead of calling the slot directly when the signal is invoked, rocket will schedule the execution in the same thread from where the observer called the `connect`-function. With this system it is extremely easy to build a message queue between different threads.
 
@@ -468,6 +466,64 @@ private:
         // Show log message
     }
     
+private:
+    std::list<IRenderablePtr> renderables;
+    ModelFileLoaderThread modelLoaderThread;
+};
+```
+
+## 8. Using `set_interval` and `set_timeout`
+
+Other than signals and slots, rocket can also schedule timers for you! They work similar to the `queued_connections` shown in example 7.
+
+```cpp
+// [...] (See example 7)
+
+class RenderThread {
+public:
+    void initialize() {
+        modelLoaderThread.start();
+
+        connections += {
+            // Register a timer that gets called every 5000 ms
+            rocket::set_interval<&RenderThread::onClearRenderablesTimerExpired>(this, 5000),
+            
+            // Connect to the thread using queued_connection flag
+            modelLoaderThread.modelLoaded.connect<&RenderThread::onModelLoaded>(this, rocket::queued_connection),
+            modelLoaderThread.modelLoadFailed.connect<&RenderThread::onModelLoadFailed>(this, rocket::queued_connection)
+        };
+    }
+
+    void shutdown() {
+        modelLoaderThread.shutdown();
+    }
+    
+    void render() {
+        rocket::dispatch_queued_calls();    //<-- This call is required so rocket can call the queued slots from this thread
+  
+        for (IRenderablePtr& renderable : renderables) {
+            // Will be rendered for at most 5 seconds because `onClearRenderablesTimerExpired` periodically clears the renderables
+            renderable->render();
+        }
+    }
+    
+private:
+    // These slots are actually executed from inside the `rocket::dispatch_queued_calls` method
+
+    void onModelLoaded(ModelFilePtr const& modelFile) {
+        // No lock needed, because onModelLoaded is called on render thread!
+        renderables.push_back(new ModelRenderer(modelFile));
+    }
+
+    void onModelLoadFailed(std::string const& fileName) {
+        // Show log message
+    }
+
+    void onClearRenderablesTimerExpired() {
+        // Called every 5000 ms from inside the `rocket::dispatch_queud_calls` method
+        renderables.clear();
+    }
+
 private:
     std::list<IRenderablePtr> renderables;
     ModelFileLoaderThread modelLoaderThread;
