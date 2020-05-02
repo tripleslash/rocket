@@ -40,6 +40,24 @@
 
 /***********************************************************************************
  * ------------------------------------------------------------------------------- *
+ * Define this if you want to disable `set_timeout` and `set_interval` features.   *
+ * ------------------------------------------------------------------------------- */
+
+#ifndef ROCKET_NO_TIMERS
+// #define ROCKET_NO_TIMERS
+#endif
+
+/***********************************************************************************
+ * ------------------------------------------------------------------------------- *
+ * Define this if you want to disable the connection blocking feature.             *
+ * ------------------------------------------------------------------------------- */
+
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
+// #define ROCKET_NO_BLOCKING_CONNECTIONS
+#endif
+
+/***********************************************************************************
+ * ------------------------------------------------------------------------------- *
  * Redefine this if your compiler doesn't support the `thread_local`-keyword.      *
  * For Visual Studio < 2015 you can define it to `__declspec(thread)` for example. *
  * ------------------------------------------------------------------------------- */
@@ -426,6 +444,7 @@ int main() {
 #include <exception>
 #include <type_traits>
 #include <cassert>
+#include <chrono>
 #include <utility>
 #include <memory>
 #include <functional>
@@ -1934,7 +1953,7 @@ namespace rocket
                 return lock_primitive->mutex.try_lock();
             }
 
-            void unlock() 
+            void unlock()
             {
                 lock_primitive->mutex.unlock();
             }
@@ -1985,6 +2004,7 @@ namespace rocket
                 return false;
             }
 
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
             void block() ROCKET_NOEXCEPT
             {
                 ++block_count;
@@ -2002,10 +2022,11 @@ namespace rocket
                 return block_count > 0;
             }
 
+            unsigned long block_count{ 0 };
+#endif //~ ROCKET_NO_BLOCKING_CONNECTIONS
+
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
-
-            unsigned long block_count{ 0 };
         };
 
         template <>
@@ -2043,9 +2064,10 @@ namespace rocket
             bool is_queued() const ROCKET_NOEXCEPT
             {
                 return thread_id != std::thread::id{}
-                    && thread_id != std::this_thread::get_id();
+                && thread_id != std::this_thread::get_id();
             }
 
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
             void block() ROCKET_NOEXCEPT
             {
                 std::scoped_lock<std::mutex> guard{ lock->mutex };
@@ -2065,22 +2087,30 @@ namespace rocket
                 return (*static_cast<unsigned long const volatile*>(&block_count)) > 0;
             }
 
+            unsigned long block_count{ 0 };
+#endif //~ ROCKET_NO_BLOCKING_CONNECTIONS
+
             intrusive_ptr<connection_base> next;
             intrusive_ptr<connection_base> prev;
 
             intrusive_ptr<shared_lock> lock;
 
             std::thread::id thread_id;
-
-            unsigned long block_count{ 0 };
         };
 
         template <class ThreadingPolicy, class T>
-        struct functional_connection final : connection_base<ThreadingPolicy>
+        struct functional_connection : connection_base<ThreadingPolicy>
         {
             std::function<T> slot;
         };
 
+#ifndef ROCKET_NO_TIMERS
+        struct timed_connection final : functional_connection<thread_unsafe_policy, void()>
+        {
+            std::chrono::time_point<std::chrono::steady_clock> expires_at;
+            bool is_repeat{ false };
+        };
+#endif
         // Should make sure that this is POD
         struct thread_local_data final
         {
@@ -2133,20 +2163,21 @@ namespace rocket
         template <class Instance, class Class, class R, class... Args>
         struct weak_mem_fn final
         {
-            explicit weak_mem_fn(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
+            explicit weak_mem_fn(std::weak_ptr<Instance> c, R(Class::* method)(Args...))
                 : weak{ std::move(c) }
                 , method{ method }
             {
             }
 
             template <class... Args1>
-            auto operator () (Args1&&... args) const
+            auto operator () (Args1&& ... args) const
             {
                 if constexpr (std::is_void_v<R>) {
                     if (auto strong = weak.lock()) {
                         (strong.get()->*method)(std::forward<Args1>(args)...);
                     }
-                } else {
+                }
+                else {
                     if (auto strong = weak.lock()) {
                         return optional<R>{
                             (strong.get()->*method)(std::forward<Args1>(args)...)
@@ -2158,67 +2189,28 @@ namespace rocket
 
         private:
             std::weak_ptr<Instance> weak;
-            R(Class::*method)(Args...);
+            R(Class::* method)(Args...);
         };
 
         template <class Instance, class Class, class R, class... Args>
         struct shared_mem_fn final
         {
-            explicit shared_mem_fn(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
+            explicit shared_mem_fn(std::shared_ptr<Instance> c, R(Class::* method)(Args...))
                 : shared{ std::move(c) }
                 , method{ method }
             {
             }
 
             template <class... Args1>
-            R operator () (Args1&&... args) const
+            R operator () (Args1&& ... args) const
             {
                 return (shared.get()->*method)(std::forward<Args1>(args)...);
             }
 
         private:
             std::shared_ptr<Instance> shared;
-            R(Class::*method)(Args...);
+            R(Class::* method)(Args...);
         };
-
-        struct call_queue final
-        {
-            void put(std::thread::id tid, std::packaged_task<void()> task)
-            {
-                std::scoped_lock<std::mutex> guard{ mutex };
-                queue[tid].push_front(std::move(task));
-            }
-
-            void dispatch()
-            {
-                std::thread::id tid = std::this_thread::get_id();
-                std::forward_list<std::packaged_task<void()>> thread_queue;
-
-                {
-                    std::scoped_lock<std::mutex> guard{ mutex };
-
-                    auto iterator = queue.find(tid);
-                    if (iterator != queue.end()) {
-                        thread_queue.swap(iterator->second);
-                        queue.erase(iterator);
-                    }
-                }
-
-                for (auto& function : thread_queue) {
-                    function();
-                }
-            }
-
-        private:
-            std::mutex mutex;
-            std::unordered_map<std::thread::id, std::forward_list<std::packaged_task<void()>>> queue;
-        };
-
-        inline call_queue* get_call_queue() ROCKET_NOEXCEPT
-        {
-            static call_queue queue;
-            return &queue;
-        }
     }
 
     template <class Instance, class Class, class R, class... Args>
@@ -2237,11 +2229,6 @@ namespace rocket
     auto bind_shared_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
     {
         return detail::shared_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
-    }
-
-    inline void dispatch_queued_calls()
-    {
-        detail::get_call_queue()->dispatch();
     }
 
     struct connection
@@ -2324,6 +2311,7 @@ namespace rocket
             return false;
         }
 
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
         bool is_blocked() const ROCKET_NOEXCEPT
         {
             if (base != nullptr) {
@@ -2372,6 +2360,7 @@ namespace rocket
                 }
             }
         }
+#endif //~ ROCKET_NO_BLOCKING_CONNECTIONS
 
         void disconnect() ROCKET_NOEXCEPT
         {
@@ -2577,6 +2566,7 @@ namespace rocket
         detail::get_thread_local_data()->emission_aborted = true;
     }
 
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
     struct scoped_connection_blocker final
     {
         scoped_connection_blocker(connection c) ROCKET_NOEXCEPT
@@ -2596,6 +2586,431 @@ namespace rocket
 
         connection conn;
     };
+#endif //~ ROCKET_NO_BLOCKING_CONNECTIONS
+
+    namespace detail
+    {
+#ifndef ROCKET_NO_TIMERS
+        struct timer_queue final
+        {
+            using slot_type = std::function<void()>;
+
+            timer_queue()
+            {
+                init();
+            }
+
+            ~timer_queue() ROCKET_NOEXCEPT
+            {
+                destroy();
+            }
+
+            timer_queue(timer_queue&& q)
+                : head{ std::move(q.head) }
+                , tail{ std::move(q.tail) }
+            {
+                q.init();
+            }
+
+            timer_queue(timer_queue const& q)
+            {
+                init();
+                copy(q);
+            }
+
+            timer_queue& operator = (timer_queue&& rhs)
+            {
+                destroy();
+                head = std::move(rhs.head);
+                tail = std::move(rhs.tail);
+                rhs.init();
+                return *this;
+            }
+
+            timer_queue& operator = (timer_queue const& rhs)
+            {
+                if (this != &rhs) {
+                    clear();
+                    copy(rhs);
+                }
+                return *this;
+            }
+
+            connection set_interval(slot_type slot, unsigned long interval_ms)
+            {
+                assert(slot != nullptr);
+
+                auto expires_at = std::chrono::steady_clock::now() + std::chrono::milliseconds(interval_ms);
+                connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), true);
+                return connection{ static_cast<void*>(base) };
+            }
+
+            template <class Instance, class Class, class R>
+            connection set_interval(Instance& object, R(Class::* method)(), unsigned long interval_ms)
+            {
+                connection c{
+                    set_interval([&object, method] {
+                        (object.*method)();
+                    }, interval_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable&>(object).add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            template <auto Method, class Instance>
+            connection set_interval(Instance& object, unsigned long interval_ms)
+            {
+                connection c{
+                    set_interval([&object] {
+                        (object.*Method)();
+                    }, interval_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable&>(object).add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            template <class Instance, class Class, class R>
+            connection set_interval(Instance* object, R(Class::* method)(), unsigned long interval_ms)
+            {
+                connection c{
+                    set_interval([object, method] {
+                        (object->*method)();
+                    }, interval_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable*>(object)->add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            template <auto Method, class Instance>
+            connection set_interval(Instance* object, unsigned long interval_ms)
+            {
+                connection c{
+                    set_interval([object] {
+                        (object->*Method)();
+                    }, interval_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable*>(object)->add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            connection set_timeout(slot_type slot, unsigned long timeout_ms)
+            {
+                assert(slot != nullptr);
+
+                auto expires_at = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+                connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), false);
+                return connection{ static_cast<void*>(base) };
+            }
+
+            template <class Instance, class Class, class R>
+            connection set_timeout(Instance& object, R(Class::* method)(), unsigned long timeout_ms)
+            {
+                connection c{
+                    set_timeout([&object, method] {
+                        (object.*method)();
+                    }, timeout_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable&>(object).add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            template <auto Method, class Instance>
+            connection set_timeout(Instance& object, unsigned long timeout_ms)
+            {
+                connection c{
+                    set_timeout([&object] {
+                        (object.*Method)();
+                    }, timeout_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable&>(object).add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            template <class Instance, class Class, class R>
+            connection set_timeout(Instance* object, R(Class::* method)(), unsigned long timeout_ms)
+            {
+                connection c{
+                    set_timeout([object, method] {
+                        (object->*method)();
+                    }, timeout_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable*>(object)->add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            template <auto Method, class Instance>
+            connection set_timeout(Instance* object, unsigned long timeout_ms)
+            {
+                connection c{
+                    set_timeout([object] {
+                        (object->*Method)();
+                    }, timeout_ms)
+                };
+                if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                    static_cast<trackable*>(object)->add_tracked_connection(c);
+                }
+                return c;
+            }
+
+            void clear() ROCKET_NOEXCEPT
+            {
+                intrusive_ptr<connection_base> current{ head->next };
+                while (current != tail) {
+                    intrusive_ptr<connection_base> next{ current->next };
+                    current->next = tail;
+                    current->prev = nullptr;
+                    current = std::move(next);
+                }
+
+                head->next = tail;
+                tail->prev = head;
+            }
+
+            void swap(timer_queue& other) ROCKET_NOEXCEPT
+            {
+                if (this != &other) {
+                    head.swap(other.head);
+                    tail.swap(other.tail);
+                }
+            }
+
+            void dispatch()
+            {
+#ifndef ROCKET_NO_EXCEPTIONS
+                bool error{ false };
+#endif
+                std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
+                {
+                    detail::thread_local_data* th{ detail::get_thread_local_data() };
+                    detail::abort_scope ascope{ th };
+
+                    intrusive_ptr<connection_base> current{ head->next };
+                    intrusive_ptr<connection_base> end{ tail };
+
+                    while (current != end) {
+                        assert(current != nullptr);
+
+                        if (current->prev != nullptr
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
+                            && current->block_count == 0
+#endif
+                            )
+                        {
+                            detail::connection_scope cscope{ current, th };
+
+                            timed_connection* conn = static_cast<
+                                timed_connection*>(static_cast<void*>(current));
+
+                            if (conn->expires_at <= now) {
+#ifndef ROCKET_NO_EXCEPTIONS
+                                try {
+#endif
+                                    conn->slot();
+#ifndef ROCKET_NO_EXCEPTIONS
+                                } catch (...) {
+                                    error = true;
+                                }
+#endif
+                                if (!conn->is_repeat) {
+                                    conn->disconnect();
+                                }
+
+                                if (th->emission_aborted) {
+                                    break;
+                                }
+                            }
+                        }
+
+                        current = current->next;
+                    }
+                }
+
+#ifndef ROCKET_NO_EXCEPTIONS
+                if (error) {
+                    throw invocation_slot_error{};
+                }
+#endif
+            }
+
+        private:
+            using connection_base = connection_base<thread_unsafe_policy>;
+
+            void init()
+            {
+                head = new connection_base;
+                tail = new connection_base;
+                head->next = tail;
+                tail->prev = head;
+            }
+
+            void destroy() ROCKET_NOEXCEPT
+            {
+                clear();
+                head->next = nullptr;
+                tail->prev = nullptr;
+            }
+
+            void copy(timer_queue const& q)
+            {
+                intrusive_ptr<connection_base> current{ q.head->next };
+                intrusive_ptr<connection_base> end{ q.tail };
+
+                while (current != end) {
+                    timed_connection* conn = static_cast<
+                        timed_connection*>(static_cast<void*>(current));
+
+                    make_link(tail, conn->slot, conn->expires_at, conn->is_repeat);
+                    current = current->next;
+                }
+            }
+
+            timed_connection* make_link(connection_base* l, slot_type slot,
+                std::chrono::time_point<std::chrono::steady_clock> expires_at, bool repeat)
+            {
+                intrusive_ptr<timed_connection> link{ new timed_connection };
+                link->slot = std::move(slot);
+                link->expires_at = std::move(expires_at);
+                link->is_repeat = repeat;
+                link->prev = l->prev;
+                link->next = l;
+                link->prev->next = link;
+                link->next->prev = link;
+                return link;
+            }
+
+            intrusive_ptr<connection_base> head;
+            intrusive_ptr<connection_base> tail;
+        };
+
+        inline timer_queue* get_timer_queue() ROCKET_NOEXCEPT
+        {
+            static ROCKET_THREAD_LOCAL timer_queue queue;
+            return &queue;
+        }
+
+#endif //~ ROCKET_NO_TIMERS
+
+        struct call_queue final
+        {
+            void put(std::thread::id tid, std::packaged_task<void()> task)
+            {
+                std::scoped_lock<std::mutex> guard{ mutex };
+                queue[tid].push_front(std::move(task));
+            }
+
+            void dispatch()
+            {
+                std::thread::id tid = std::this_thread::get_id();
+                std::forward_list<std::packaged_task<void()>> thread_queue;
+
+                {
+                    std::scoped_lock<std::mutex> guard{ mutex };
+
+                    auto iterator = queue.find(tid);
+                    if (iterator != queue.end()) {
+                        thread_queue.swap(iterator->second);
+                        queue.erase(iterator);
+                    }
+                }
+
+                for (auto& function : thread_queue) {
+                    function();
+                }
+            }
+
+        private:
+            std::mutex mutex;
+            std::unordered_map<std::thread::id, std::forward_list<std::packaged_task<void()>>> queue;
+        };
+
+        inline call_queue* get_call_queue() ROCKET_NOEXCEPT
+        {
+            static call_queue queue;
+            return &queue;
+        }
+    }
+
+    inline void dispatch_queued_calls()
+    {
+#ifndef ROCKET_NO_TIMERS
+        detail::get_timer_queue()->dispatch();
+#endif
+        detail::get_call_queue()->dispatch();
+    }
+
+#ifndef ROCKET_NO_TIMERS
+    inline connection set_interval(std::function<void()> slot, unsigned long interval_ms)
+    {
+        return detail::get_timer_queue()->set_interval(std::move(slot), interval_ms);
+    }
+
+    template <class Instance, class Class, class R>
+    inline connection set_interval(Instance& object, R(Class::*method)(), unsigned long interval_ms)
+    {
+        return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, interval_ms);
+    }
+
+    template <auto Method, class Instance>
+    inline connection set_interval(Instance& object, unsigned long interval_ms)
+    {
+        return detail::get_timer_queue()->template set_interval<Method, Instance>(object, interval_ms);
+    }
+
+    template <class Instance, class Class, class R>
+    inline connection set_interval(Instance* object, R(Class::*method)(), unsigned long interval_ms)
+    {
+        return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, interval_ms);
+    }
+
+    template <auto Method, class Instance>
+    inline connection set_interval(Instance* object, unsigned long interval_ms)
+    {
+        return detail::get_timer_queue()->template set_interval<Method, Instance>(object, interval_ms);
+    }
+
+    inline connection set_timeout(std::function<void()> slot, unsigned long timeout_ms)
+    {
+        return detail::get_timer_queue()->set_timeout(std::move(slot), timeout_ms);
+    }
+
+    template <class Instance, class Class, class R>
+    inline connection set_timeout(Instance& object, R(Class::* method)(), unsigned long timeout_ms)
+    {
+        return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, timeout_ms);
+    }
+
+    template <auto Method, class Instance>
+    inline connection set_timeout(Instance& object, unsigned long timeout_ms)
+    {
+        return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, timeout_ms);
+    }
+
+    template <class Instance, class Class, class R>
+    inline connection set_timeout(Instance* object, R(Class::* method)(), unsigned long timeout_ms)
+    {
+        return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, timeout_ms);
+    }
+
+    template <auto Method, class Instance>
+    inline connection set_timeout(Instance* object, unsigned long timeout_ms)
+    {
+        return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, timeout_ms);
+    }
+#endif //~ ROCKET_NO_TIMERS
 
     template <class T>
     struct default_collector final : last<optional<T>>
@@ -2820,7 +3235,12 @@ namespace rocket
                 while (current != end) {
                     assert(current != nullptr);
 
-                    if (current->prev != nullptr && current->block_count == 0) {
+                    if (current->prev != nullptr
+#ifndef ROCKET_NO_BLOCKING_CONNECTIONS
+                        && current->block_count == 0
+#endif
+                        )
+                    {
                         detail::connection_scope cscope{ current, th };
 
                         lock_state.unlock();
