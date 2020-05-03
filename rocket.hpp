@@ -2108,7 +2108,7 @@ namespace rocket
         struct timed_connection final : functional_connection<thread_unsafe_policy, void()>
         {
             std::chrono::time_point<std::chrono::steady_clock> expires_at;
-            bool is_repeat{ false };
+            std::chrono::microseconds interval;
         };
 #endif
         // Should make sure that this is POD
@@ -2642,7 +2642,8 @@ namespace rocket
                 assert(slot != nullptr);
 
                 auto expires_at = std::chrono::steady_clock::now() + interval;
-                connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), true);
+                auto interval_microsecs = std::chrono::duration_cast<std::chrono::microseconds>(interval);
+                connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), std::move(interval_microsecs));
                 return connection{ static_cast<void*>(base) };
             }
 
@@ -2716,7 +2717,7 @@ namespace rocket
                 assert(slot != nullptr);
 
                 auto expires_at = std::chrono::steady_clock::now() + timeout;
-                connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), false);
+                connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), std::chrono::microseconds(-1));
                 return connection{ static_cast<void*>(base) };
             }
 
@@ -2835,8 +2836,10 @@ namespace rocket
                                 timed_connection*>(static_cast<void*>(current));
 
                             if (conn->expires_at <= now) {
-                                if (!conn->is_repeat) {
+                                if (conn->interval.count() < 0) {
                                     conn->disconnect();
+                                } else {
+                                    conn->expires_at = now + conn->interval;
                                 }
 #ifndef ROCKET_NO_EXCEPTIONS
                                 try {
@@ -2900,18 +2903,19 @@ namespace rocket
                     timed_connection* conn = static_cast<
                         timed_connection*>(static_cast<void*>(current));
 
-                    make_link(tail, conn->slot, conn->expires_at, conn->is_repeat);
+                    make_link(tail, conn->slot, conn->expires_at, conn->interval);
                     current = current->next;
                 }
             }
 
             timed_connection* make_link(connection_base* l, slot_type slot,
-                std::chrono::time_point<std::chrono::steady_clock> expires_at, bool repeat)
+                std::chrono::time_point<std::chrono::steady_clock> expires_at,
+                std::chrono::microseconds interval)
             {
                 intrusive_ptr<timed_connection> link{ new timed_connection };
                 link->slot = std::move(slot);
                 link->expires_at = std::move(expires_at);
-                link->is_repeat = repeat;
+                link->interval = std::move(interval);
                 link->prev = l->prev;
                 link->next = l;
                 link->prev->next = link;
