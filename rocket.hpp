@@ -3086,7 +3086,7 @@ namespace rocket
     template <auto Method>
     inline connection set_interval(unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->template set_interval<Method>(std::chrono::milliseconds(interval));
+        return detail::get_timer_queue()->template set_interval<Method>(std::chrono::milliseconds(interval_ms));
     }
 
     template <class Instance, class Class, class R>
