@@ -3004,7 +3004,7 @@ namespace rocket
         }
 #ifndef ROCKET_NO_TIMERS
         bool not_enough_time = detail::get_timer_queue()->dispatch(execute_until);
-        if (not_enough_time) {
+        if (not_enough_time) [[unlikely]] {
             return;
         }
 #endif
