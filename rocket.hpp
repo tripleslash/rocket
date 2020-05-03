@@ -2995,11 +2995,11 @@ namespace rocket
         }
     }
 
-    template <class Rep = unsigned long, class Period = std::milli>
-    inline void dispatch_queued_calls(std::chrono::duration<Rep, Period> const& max_time_to_execute = std::chrono::duration<Rep, Period>{})
+    template <class Rep, class Period>
+    inline void dispatch_queued_calls(std::chrono::duration<Rep, Period> const& max_time_to_execute)
     {
         std::chrono::time_point<std::chrono::steady_clock> execute_until{};
-        if (max_time_to_execute != std::chrono::duration<Rep, Period>{}) [[unlikely]] {
+        if (max_time_to_execute.count() > 0) [[unlikely]] {
             execute_until = std::chrono::steady_clock::now() + max_time_to_execute;
         }
 #ifndef ROCKET_NO_TIMERS
@@ -3009,6 +3009,11 @@ namespace rocket
         }
 #endif
         detail::get_call_queue()->dispatch(execute_until);
+    }
+
+    inline void dispatch_queued_calls()
+    {
+        dispatch_queued_calls(std::chrono::microseconds::zero());
     }
 
 #ifndef ROCKET_NO_TIMERS
