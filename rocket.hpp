@@ -2806,11 +2806,12 @@ namespace rocket
                 }
             }
 
-            void dispatch(std::chrono::time_point<std::chrono::steady_clock> execute_until)
+            bool dispatch(std::chrono::time_point<std::chrono::steady_clock> execute_until)
             {
 #ifndef ROCKET_NO_EXCEPTIONS
                 bool error{ false };
 #endif
+                bool not_enough_time{ false };
                 std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
                 {
                     detail::thread_local_data* th{ detail::get_thread_local_data() };
@@ -2849,6 +2850,7 @@ namespace rocket
                                 if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) [[unlikely]] {
                                     // Check if we already spent the maximum allowed time executing callbacks
                                     if (execute_until <= std::chrono::steady_clock::now()) {
+                                        not_enough_time = true;
                                         break;
                                     }
                                 }
@@ -2868,6 +2870,7 @@ namespace rocket
                     throw invocation_slot_error{};
                 }
 #endif
+                return not_enough_time;
             }
 
         private:
@@ -2936,7 +2939,7 @@ namespace rocket
                 queue[tid].push_back(std::move(task));
             }
 
-            void dispatch(std::chrono::time_point<std::chrono::steady_clock> execute_until)
+            bool dispatch(std::chrono::time_point<std::chrono::steady_clock> execute_until)
             {
                 std::thread::id tid = std::this_thread::get_id();
                 std::deque<std::packaged_task<void()>> thread_queue;
@@ -2977,6 +2980,7 @@ namespace rocket
                         original_queue.push_front(std::move(*it));
                     }
                 }
+                return itr != end;
             }
 
         private:
@@ -2999,7 +3003,10 @@ namespace rocket
             execute_until = std::chrono::steady_clock::now() + max_time_to_execute;
         }
 #ifndef ROCKET_NO_TIMERS
-        detail::get_timer_queue()->dispatch(execute_until);
+        bool not_enough_time = detail::get_timer_queue()->dispatch(execute_until);
+        if (not_enough_time) {
+            return;
+        }
 #endif
         detail::get_call_queue()->dispatch(execute_until);
     }
