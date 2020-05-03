@@ -456,10 +456,7 @@ int main() {
 #include <future>
 #include <unordered_map>
 #include <deque>
-
-#ifndef ROCKET_NO_TIMERS
-#   include <chrono>
-#endif
+#include <chrono>
 
 #ifndef ROCKET_NO_STD_OPTIONAL
 #   include <optional>
@@ -2639,30 +2636,31 @@ namespace rocket
                 return *this;
             }
 
-            connection set_interval(slot_type slot, unsigned long interval_ms)
+            template <class Rep = unsigned long, class Period = std::milli>
+            connection set_interval(slot_type slot, std::chrono::duration<Rep, Period> const& interval)
             {
                 assert(slot != nullptr);
 
-                auto expires_at = std::chrono::steady_clock::now() + std::chrono::milliseconds(interval_ms);
+                auto expires_at = std::chrono::steady_clock::now() + interval;
                 connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), true);
                 return connection{ static_cast<void*>(base) };
             }
 
-            template <auto Method>
-            connection set_interval(unsigned long interval_ms)
+            template <auto Method, class Rep = unsigned long, class Period = std::milli>
+            connection set_interval(std::chrono::duration<Rep, Period> const& interval)
             {
-                return set_interval([] {
+                return set_interval<Rep, Period>([] {
                     (*Method)();
-                }, interval_ms);
+                }, interval);
             }
 
-            template <class Instance, class Class, class R>
-            connection set_interval(Instance& object, R(Class::* method)(), unsigned long interval_ms)
+            template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+            connection set_interval(Instance& object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& interval)
             {
                 connection c{
-                    set_interval([&object, method] {
+                    set_interval<Rep, Period>([&object, method] {
                         (object.*method)();
-                    }, interval_ms)
+                    }, interval)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable&>(object).add_tracked_connection(c);
@@ -2670,13 +2668,13 @@ namespace rocket
                 return c;
             }
 
-            template <auto Method, class Instance>
-            connection set_interval(Instance& object, unsigned long interval_ms)
+            template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+            connection set_interval(Instance& object, std::chrono::duration<Rep, Period> const& interval)
             {
                 connection c{
-                    set_interval([&object] {
+                    set_interval<Rep, Period>([&object] {
                         (object.*Method)();
-                    }, interval_ms)
+                    }, interval)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable&>(object).add_tracked_connection(c);
@@ -2684,13 +2682,13 @@ namespace rocket
                 return c;
             }
 
-            template <class Instance, class Class, class R>
-            connection set_interval(Instance* object, R(Class::* method)(), unsigned long interval_ms)
+            template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+            connection set_interval(Instance* object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& interval)
             {
                 connection c{
-                    set_interval([object, method] {
+                    set_interval<Rep, Period>([object, method] {
                         (object->*method)();
-                    }, interval_ms)
+                    }, interval)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable*>(object)->add_tracked_connection(c);
@@ -2698,13 +2696,13 @@ namespace rocket
                 return c;
             }
 
-            template <auto Method, class Instance>
-            connection set_interval(Instance* object, unsigned long interval_ms)
+            template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+            connection set_interval(Instance* object, std::chrono::duration<Rep, Period> const& interval)
             {
                 connection c{
-                    set_interval([object] {
+                    set_interval<Rep, Period>([object] {
                         (object->*Method)();
-                    }, interval_ms)
+                    }, interval)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable*>(object)->add_tracked_connection(c);
@@ -2712,30 +2710,31 @@ namespace rocket
                 return c;
             }
 
-            connection set_timeout(slot_type slot, unsigned long timeout_ms)
+            template <class Rep = unsigned long, class Period = std::milli>
+            connection set_timeout(slot_type slot, std::chrono::duration<Rep, Period> const& timeout)
             {
                 assert(slot != nullptr);
 
-                auto expires_at = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+                auto expires_at = std::chrono::steady_clock::now() + timeout;
                 connection_base* base = make_link(tail, std::move(slot), std::move(expires_at), false);
                 return connection{ static_cast<void*>(base) };
             }
 
-            template <auto Method>
-            connection set_timeout(unsigned long timeout_ms)
+            template <auto Method, class Rep = unsigned long, class Period = std::milli>
+            connection set_timeout(std::chrono::duration<Rep, Period> const& timeout)
             {
-                return set_timeout([] {
+                return set_timeout<Rep, Period>([] {
                     (*Method)();
-                }, timeout_ms);
+                }, timeout);
             }
 
-            template <class Instance, class Class, class R>
-            connection set_timeout(Instance& object, R(Class::* method)(), unsigned long timeout_ms)
+            template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+            connection set_timeout(Instance& object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
             {
                 connection c{
-                    set_timeout([&object, method] {
+                    set_timeout<Rep, Period>([&object, method] {
                         (object.*method)();
-                    }, timeout_ms)
+                    }, timeout)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable&>(object).add_tracked_connection(c);
@@ -2743,13 +2742,13 @@ namespace rocket
                 return c;
             }
 
-            template <auto Method, class Instance>
-            connection set_timeout(Instance& object, unsigned long timeout_ms)
+            template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+            connection set_timeout(Instance& object, std::chrono::duration<Rep, Period> const& timeout)
             {
                 connection c{
-                    set_timeout([&object] {
+                    set_timeout<Rep, Period>([&object] {
                         (object.*Method)();
-                    }, timeout_ms)
+                    }, timeout)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable&>(object).add_tracked_connection(c);
@@ -2757,13 +2756,13 @@ namespace rocket
                 return c;
             }
 
-            template <class Instance, class Class, class R>
-            connection set_timeout(Instance* object, R(Class::* method)(), unsigned long timeout_ms)
+            template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+            connection set_timeout(Instance* object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
             {
                 connection c{
-                    set_timeout([object, method] {
+                    set_timeout<Rep, Period>([object, method] {
                         (object->*method)();
-                    }, timeout_ms)
+                    }, timeout)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable*>(object)->add_tracked_connection(c);
@@ -2771,13 +2770,13 @@ namespace rocket
                 return c;
             }
 
-            template <auto Method, class Instance>
-            connection set_timeout(Instance* object, unsigned long timeout_ms)
+            template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+            connection set_timeout(Instance* object, std::chrono::duration<Rep, Period> const& timeout)
             {
                 connection c{
-                    set_timeout([object] {
+                    set_timeout<Rep, Period>([object] {
                         (object->*Method)();
-                    }, timeout_ms)
+                    }, timeout)
                 };
                 if constexpr (std::is_convertible_v<Instance*, trackable*>) {
                     static_cast<trackable*>(object)->add_tracked_connection(c);
@@ -2807,7 +2806,7 @@ namespace rocket
                 }
             }
 
-            void dispatch()
+            void dispatch(std::chrono::time_point<std::chrono::steady_clock> execute_until)
             {
 #ifndef ROCKET_NO_EXCEPTIONS
                 bool error{ false };
@@ -2827,7 +2826,7 @@ namespace rocket
 #ifndef ROCKET_NO_BLOCKING_CONNECTIONS
                             && current->block_count == 0
 #endif
-                            )
+                            ) [[likely]]
                         {
                             detail::connection_scope cscope{ current, th };
 
@@ -2847,7 +2846,14 @@ namespace rocket
                                     error = true;
                                 }
 #endif
-                                if (th->emission_aborted) {
+                                if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) [[unlikely]] {
+                                    // Check if we already spent the maximum allowed time executing callbacks
+                                    if (execute_until <= std::chrono::steady_clock::now()) {
+                                        break;
+                                    }
+                                }
+
+                                if (th->emission_aborted) [[unlikely]] {
                                     break;
                                 }
                             }
@@ -2858,7 +2864,7 @@ namespace rocket
                 }
 
 #ifndef ROCKET_NO_EXCEPTIONS
-                if (error) {
+                if (error) [[unlikely]] {
                     throw invocation_slot_error{};
                 }
 #endif
@@ -2927,13 +2933,13 @@ namespace rocket
             void put(std::thread::id tid, std::packaged_task<void()> task)
             {
                 std::scoped_lock<std::mutex> guard{ mutex };
-                queue[tid].push_front(std::move(task));
+                queue[tid].push_back(std::move(task));
             }
 
-            void dispatch()
+            void dispatch(std::chrono::time_point<std::chrono::steady_clock> execute_until)
             {
                 std::thread::id tid = std::this_thread::get_id();
-                std::forward_list<std::packaged_task<void()>> thread_queue;
+                std::deque<std::packaged_task<void()>> thread_queue;
 
                 {
                     std::scoped_lock<std::mutex> guard{ mutex };
@@ -2945,14 +2951,37 @@ namespace rocket
                     }
                 }
 
-                for (auto& function : thread_queue) {
-                    function();
+                auto itr = thread_queue.begin();
+                auto end = thread_queue.end();
+
+                while (itr != end) {
+                    (itr++)->operator()();
+
+                    if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) [[unlikely]] {
+                        // check if we already spent the maximum allowed time executing callbacks
+                        if (execute_until <= std::chrono::steady_clock::now()) {
+                            break;
+                        }
+                    }
+                }
+
+                if (itr != end) [[unlikely]] {
+                    // readd unfinished work to the queue
+                    auto rbegin = std::make_reverse_iterator(end);
+                    auto rend = std::make_reverse_iterator(itr);
+
+                    std::scoped_lock<std::mutex> guard{ mutex };
+                    std::deque<std::packaged_task<void()>>& original_queue = queue[tid];
+
+                    for (auto it = rbegin; it != rend; ++it) {
+                        original_queue.push_front(std::move(*it));
+                    }
                 }
             }
 
         private:
             std::mutex mutex;
-            std::unordered_map<std::thread::id, std::forward_list<std::packaged_task<void()>>> queue;
+            std::unordered_map<std::thread::id, std::deque<std::packaged_task<void()>>> queue;
         };
 
         inline call_queue* get_call_queue() ROCKET_NOEXCEPT
@@ -2962,83 +2991,161 @@ namespace rocket
         }
     }
 
-    inline void dispatch_queued_calls()
+    template <class Rep = unsigned long, class Period = std::milli>
+    inline void dispatch_queued_calls(std::chrono::duration<Rep, Period> const& max_time_to_execute = std::chrono::duration<Rep, Period>{})
     {
+        std::chrono::time_point<std::chrono::steady_clock> execute_until{};
+        if (max_time_to_execute != std::chrono::duration<Rep, Period>{}) [[unlikely]] {
+            execute_until = std::chrono::steady_clock::now() + max_time_to_execute;
+        }
 #ifndef ROCKET_NO_TIMERS
-        detail::get_timer_queue()->dispatch();
+        detail::get_timer_queue()->dispatch(execute_until);
 #endif
-        detail::get_call_queue()->dispatch();
+        detail::get_call_queue()->dispatch(execute_until);
     }
 
 #ifndef ROCKET_NO_TIMERS
+    template <class Rep = unsigned long, class Period = std::milli>
+    inline connection set_interval(std::function<void()> slot, std::chrono::duration<Rep, Period> const& interval)
+    {
+        return detail::get_timer_queue()->template set_interval<Rep, Period>(std::move(slot), interval);
+    }
+
+    template <auto Method, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_interval(std::chrono::duration<Rep, Period> const& interval)
+    {
+        return detail::get_timer_queue()->template set_interval<Method, Rep, Period>(interval);
+    }
+
+    template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_interval(Instance& object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& interval)
+    {
+        return detail::get_timer_queue()->template set_interval<Instance, Class, R, Rep, Period>(object, method, interval);
+    }
+
+    template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_interval(Instance& object, std::chrono::duration<Rep, Period> const& interval)
+    {
+        return detail::get_timer_queue()->template set_interval<Method, Instance, Rep, Period>(object, interval);
+    }
+
+    template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_interval(Instance* object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& interval)
+    {
+        return detail::get_timer_queue()->template set_interval<Instance, Class, R, Rep, Period>(object, method, interval);
+    }
+
+    template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_interval(Instance* object, std::chrono::duration<Rep, Period> const& interval)
+    {
+        return detail::get_timer_queue()->template set_interval<Method, Instance, Rep, Period>(object, interval);
+    }
+
+    template <class Rep = unsigned long, class Period = std::milli>
+    inline connection set_timeout(std::function<void()> slot, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return detail::get_timer_queue()->template set_timeout<Rep, Period>(std::move(slot), timeout);
+    }
+
+    template <auto Method, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_timeout(std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return detail::get_timer_queue()->template set_timeout<Method, Rep, Period>(timeout);
+    }
+
+    template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_timeout(Instance& object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return detail::get_timer_queue()->template set_timeout<Instance, Class, R, Rep, Period>(object, method, timeout);
+    }
+
+    template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_timeout(Instance& object, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return detail::get_timer_queue()->template set_timeout<Method, Instance, Rep, Period>(object, timeout);
+    }
+
+    template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_timeout(Instance* object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return detail::get_timer_queue()->template set_timeout<Instance, Class, R, Rep, Period>(object, method, timeout);
+    }
+
+    template <auto Method, class Instance, class Rep = unsigned long, class Period = std::milli>
+    inline connection set_timeout(Instance* object, std::chrono::duration<Rep, Period> const& timeout)
+    {
+        return detail::get_timer_queue()->template set_timeout<Method, Instance, Rep, Period>(object, timeout);
+    }
+
+    // Overloads for milliseconds
     inline connection set_interval(std::function<void()> slot, unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->set_interval(std::move(slot), interval_ms);
+        return detail::get_timer_queue()->template set_interval<>(std::move(slot), std::chrono::milliseconds(interval_ms));
     }
 
     template <auto Method>
     inline connection set_interval(unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->template set_interval<Method>(interval_ms);
+        return detail::get_timer_queue()->template set_interval<Method>(std::chrono::milliseconds(interval));
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_interval(Instance& object, R(Class::*method)(), unsigned long interval_ms)
+    inline connection set_interval(Instance & object, R(Class:: * method)(), unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, interval_ms);
+        return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, std::chrono::milliseconds(interval_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_interval(Instance& object, unsigned long interval_ms)
+    inline connection set_interval(Instance & object, unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->template set_interval<Method, Instance>(object, interval_ms);
+        return detail::get_timer_queue()->template set_interval<Method, Instance>(object, std::chrono::milliseconds(interval_ms));
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_interval(Instance* object, R(Class::*method)(), unsigned long interval_ms)
+    inline connection set_interval(Instance * object, R(Class:: * method)(), unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, interval_ms);
+        return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, std::chrono::milliseconds(interval_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_interval(Instance* object, unsigned long interval_ms)
+    inline connection set_interval(Instance * object, unsigned long interval_ms)
     {
-        return detail::get_timer_queue()->template set_interval<Method, Instance>(object, interval_ms);
+        return detail::get_timer_queue()->template set_interval<Method, Instance>(object, std::chrono::milliseconds(interval_ms));
     }
 
     inline connection set_timeout(std::function<void()> slot, unsigned long timeout_ms)
     {
-        return detail::get_timer_queue()->set_timeout(std::move(slot), timeout_ms);
+        return detail::get_timer_queue()->template set_timeout<>(std::move(slot), std::chrono::milliseconds(timeout_ms));
     }
 
     template <auto Method>
     inline connection set_timeout(unsigned long timeout_ms)
     {
-        return detail::get_timer_queue()->template set_timeout<Method>(timeout_ms);
+        return detail::get_timer_queue()->template set_timeout<Method>(std::chrono::milliseconds(timeout_ms));
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_timeout(Instance& object, R(Class::* method)(), unsigned long timeout_ms)
+    inline connection set_timeout(Instance & object, R(Class:: * method)(), unsigned long timeout_ms)
     {
-        return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, timeout_ms);
+        return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, std::chrono::milliseconds(timeout_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_timeout(Instance& object, unsigned long timeout_ms)
+    inline connection set_timeout(Instance & object, unsigned long timeout_ms)
     {
-        return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, timeout_ms);
+        return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, std::chrono::milliseconds(timeout_ms));
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_timeout(Instance* object, R(Class::* method)(), unsigned long timeout_ms)
+    inline connection set_timeout(Instance * object, R(Class:: * method)(), unsigned long timeout_ms)
     {
-        return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, timeout_ms);
+        return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, std::chrono::milliseconds(timeout_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_timeout(Instance* object, unsigned long timeout_ms)
+    inline connection set_timeout(Instance * object, unsigned long timeout_ms)
     {
-        return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, timeout_ms);
+        return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, std::chrono::milliseconds(timeout_ms));
     }
 #endif //~ ROCKET_NO_TIMERS
 
@@ -3140,7 +3247,7 @@ namespace rocket
             bool first = (flags & connect_as_first_slot) != 0;
             
             if constexpr (std::is_same_v<ThreadingPolicy, thread_safe_policy>) {
-                if ((flags & queued_connection) != 0) {
+                if ((flags & queued_connection) != 0) [[unlikely]] {
                     tid = std::this_thread::get_id();
                 }
             } else {
@@ -3269,7 +3376,7 @@ namespace rocket
 #ifndef ROCKET_NO_BLOCKING_CONNECTIONS
                         && current->block_count == 0
 #endif
-                        )
+                        ) [[likely]]
                     {
                         detail::connection_scope cscope{ current, th };
 
@@ -3293,9 +3400,9 @@ namespace rocket
                             }
 #endif
                         } else {
-                            if (current->is_queued()) {
+                            if (current->is_queued()) [[unlikely]] {
                                 std::packaged_task<void()> task([current, &collector, args...] {
-                                    if (current->is_connected()) {
+                                    if (current->is_connected()) [[likely]] {
                                         detail::thread_local_data* th{ detail::get_thread_local_data() };
                                         detail::connection_scope cscope{ current, th };
 
@@ -3343,7 +3450,7 @@ namespace rocket
 
                         lock_state.lock();
 
-                        if (th->emission_aborted) {
+                        if (th->emission_aborted) [[unlikely]] {
                             break;
                         }
                     }
@@ -3355,7 +3462,7 @@ namespace rocket
             }
 
 #ifndef ROCKET_NO_EXCEPTIONS
-            if (error) {
+            if (error) [[unlikely]] {
                 throw invocation_slot_error{};
             }
 #endif
