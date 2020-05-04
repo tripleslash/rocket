@@ -3558,7 +3558,7 @@ namespace rocket
         intrusive_ptr<connection_base> head;
         intrusive_ptr<connection_base> tail;
 
-        mutable shared_lock_state lock_state;
+        [[no_unique_address]] mutable shared_lock_state lock_state;
     };
 
     template <class Signature
