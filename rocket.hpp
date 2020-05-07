@@ -462,6 +462,24 @@ int main() {
 #   include <optional>
 #endif
 
+#if __has_cpp_attribute(likely)
+#   define ROCKET_LIKELY [[likely]]
+#else
+#   define ROCKET_LIKELY
+#endif
+
+#if __has_cpp_attribute(unlikely)
+#   define ROCKET_UNLIKELY [[unlikely]]
+#else
+#   define ROCKET_UNLIKELY 
+#endif
+
+#if __has_cpp_attribute(no_unique_address)
+#   define ROCKET_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#else
+#   define ROCKET_NO_UNIQUE_ADDRESS 
+#endif
+
 namespace rocket
 {
     template <class T>
@@ -1045,157 +1063,157 @@ namespace rocket
     };
 
     template <class T, class U>
-    bool operator == (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator == (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() == b.get();
     }
 
     template <class T, class U>
-    bool operator == (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
+    inline bool operator == (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() == b;
     }
 
     template <class T, class U>
-    bool operator == (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator == (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a == b.get();
     }
 
     template <class T, class U>
-    bool operator != (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator != (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() != b.get();
     }
 
     template <class T, class U>
-    bool operator != (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
+    inline bool operator != (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() != b;
     }
 
     template <class T, class U>
-    bool operator != (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator != (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a != b.get();
     }
 
     template <class T, class U>
-    bool operator < (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator < (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() < b.get();
     }
 
     template <class T, class U>
-    bool operator < (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
+    inline bool operator < (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() < b;
     }
 
     template <class T, class U>
-    bool operator < (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator < (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a < b.get();
     }
 
     template <class T, class U>
-    bool operator <= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator <= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() <= b.get();
     }
 
     template <class T, class U>
-    bool operator <= (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
+    inline bool operator <= (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() <= b;
     }
 
     template <class T, class U>
-    bool operator <= (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator <= (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a <= b.get();
     }
 
     template <class T, class U>
-    bool operator > (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator > (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() > b.get();
     }
 
     template <class T, class U>
-    bool operator > (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
+    inline bool operator > (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() > b;
     }
 
     template <class T, class U>
-    bool operator > (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator > (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a > b.get();
     }
 
     template <class T, class U>
-    bool operator >= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator >= (intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a.get() >= b.get();
     }
 
     template <class T, class U>
-    bool operator >= (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
+    inline bool operator >= (intrusive_ptr<T> const& a, U* b) ROCKET_NOEXCEPT
     {
         return a.get() >= b;
     }
 
     template <class T, class U>
-    bool operator >= (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
+    inline bool operator >= (T* a, intrusive_ptr<U> const& b) ROCKET_NOEXCEPT
     {
         return a >= b.get();
     }
 
     template <class T>
-    bool operator == (intrusive_ptr<T> const& a, std::nullptr_t) ROCKET_NOEXCEPT
+    inline bool operator == (intrusive_ptr<T> const& a, std::nullptr_t) ROCKET_NOEXCEPT
     {
         return a.get() == nullptr;
     }
 
     template <class T>
-    bool operator == (std::nullptr_t, intrusive_ptr<T> const& b) ROCKET_NOEXCEPT
+    inline bool operator == (std::nullptr_t, intrusive_ptr<T> const& b) ROCKET_NOEXCEPT
     {
         return nullptr == b.get();
     }
 
     template <class T>
-    bool operator != (intrusive_ptr<T> const& a, std::nullptr_t) ROCKET_NOEXCEPT
+    inline bool operator != (intrusive_ptr<T> const& a, std::nullptr_t) ROCKET_NOEXCEPT
     {
         return a.get() != nullptr;
     }
 
     template <class T>
-    bool operator != (std::nullptr_t, intrusive_ptr<T> const& b) ROCKET_NOEXCEPT
+    inline bool operator != (std::nullptr_t, intrusive_ptr<T> const& b) ROCKET_NOEXCEPT
     {
         return nullptr != b.get();
     }
 
     template <class T>
-    T* get_pointer(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
+    inline T* get_pointer(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return p.get();
     }
 
     template <class T, class U>
-    intrusive_ptr<U> static_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
+    inline intrusive_ptr<U> static_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return intrusive_ptr<U>{ static_cast<U*>(p.get()) };
     }
 
     template <class T, class U>
-    intrusive_ptr<U> const_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
+    inline intrusive_ptr<U> const_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return intrusive_ptr<U>{ const_cast<U*>(p.get()) };
     }
 
     template <class T, class U>
-    intrusive_ptr<U> dynamic_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
+    inline intrusive_ptr<U> dynamic_pointer_cast(intrusive_ptr<T> const& p) ROCKET_NOEXCEPT
     {
         return intrusive_ptr<U>{ dynamic_cast<U*>(p.get()) };
     }
@@ -2214,19 +2232,19 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R, class... Args>
-    auto bind_weak_ptr(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
+    inline auto bind_weak_ptr(std::weak_ptr<Instance> c, R(Class::*method)(Args...))
     {
         return detail::weak_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
 
     template <class Instance, class Class, class R, class... Args>
-    auto bind_weak_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
+    inline auto bind_weak_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
     {
         return detail::weak_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
 
     template <class Instance, class Class, class R, class... Args>
-    auto bind_shared_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
+    inline auto bind_shared_ptr(std::shared_ptr<Instance> c, R(Class::*method)(Args...))
     {
         return detail::shared_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
@@ -2302,7 +2320,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     return unsafe->is_connected();
                 } else {
                     return safe->is_connected();
@@ -2320,7 +2338,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     return unsafe->is_blocked();
                 } else {
                     return safe->is_blocked();
@@ -2337,7 +2355,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     unsafe->block();
                 } else {
                     safe->block();
@@ -2353,7 +2371,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     unsafe->unblock();
                 } else {
                     safe->unblock();
@@ -2370,7 +2388,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     unsafe->disconnect();
                 } else {
                     safe->disconnect();
@@ -2400,7 +2418,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     unsafe->addref();
                 } else {
                     safe->addref();
@@ -2416,7 +2434,7 @@ namespace rocket
 
                 assert(&safe->is_thread_safe == &unsafe->is_thread_safe);
 
-                if (!unsafe->is_thread_safe) [[likely]] {
+                if (!unsafe->is_thread_safe) ROCKET_LIKELY {
                     unsafe->release();
                 } else {
                     safe->release();
@@ -2828,7 +2846,7 @@ namespace rocket
 #ifndef ROCKET_NO_BLOCKING_CONNECTIONS
                             && current->block_count == 0
 #endif
-                            ) [[likely]]
+                            ) ROCKET_LIKELY
                         {
                             detail::connection_scope cscope{ current, th };
 
@@ -2850,7 +2868,7 @@ namespace rocket
                                     error = true;
                                 }
 #endif
-                                if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) [[unlikely]] {
+                                if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) ROCKET_UNLIKELY {
                                     // Check if we already spent the maximum allowed time executing callbacks
                                     if (execute_until <= std::chrono::steady_clock::now()) {
                                         not_enough_time = true;
@@ -2858,7 +2876,7 @@ namespace rocket
                                     }
                                 }
 
-                                if (th->emission_aborted) [[unlikely]] {
+                                if (th->emission_aborted) ROCKET_UNLIKELY {
                                     break;
                                 }
                             }
@@ -2869,7 +2887,7 @@ namespace rocket
                 }
 
 #ifndef ROCKET_NO_EXCEPTIONS
-                if (error) [[unlikely]] {
+                if (error) ROCKET_UNLIKELY {
                     throw invocation_slot_error{};
                 }
 #endif
@@ -2964,7 +2982,7 @@ namespace rocket
                 while (itr != end) {
                     (itr++)->operator()();
 
-                    if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) [[unlikely]] {
+                    if (execute_until != std::chrono::time_point<std::chrono::steady_clock>{}) ROCKET_UNLIKELY {
                         // check if we already spent the maximum allowed time executing callbacks
                         if (execute_until <= std::chrono::steady_clock::now()) {
                             break;
@@ -2972,7 +2990,7 @@ namespace rocket
                     }
                 }
 
-                if (itr != end) [[unlikely]] {
+                if (itr != end) ROCKET_UNLIKELY {
                     // readd unfinished work to the queue
                     auto rbegin = std::make_reverse_iterator(end);
                     auto rend = std::make_reverse_iterator(itr);
@@ -3003,12 +3021,12 @@ namespace rocket
     inline void dispatch_queued_calls(std::chrono::duration<Rep, Period> const& max_time_to_execute)
     {
         std::chrono::time_point<std::chrono::steady_clock> execute_until{};
-        if (max_time_to_execute.count() > 0) [[unlikely]] {
+        if (max_time_to_execute.count() > 0) ROCKET_UNLIKELY {
             execute_until = std::chrono::steady_clock::now() + max_time_to_execute;
         }
 #ifndef ROCKET_NO_TIMERS
         bool not_enough_time = detail::get_timer_queue()->dispatch(execute_until);
-        if (not_enough_time) [[unlikely]] {
+        if (not_enough_time) ROCKET_UNLIKELY {
             return;
         }
 #endif
@@ -3106,25 +3124,25 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_interval(Instance & object, R(Class:: * method)(), unsigned long interval_ms)
+    inline connection set_interval(Instance& object, R(Class:: * method)(), unsigned long interval_ms)
     {
         return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, std::chrono::milliseconds(interval_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_interval(Instance & object, unsigned long interval_ms)
+    inline connection set_interval(Instance& object, unsigned long interval_ms)
     {
         return detail::get_timer_queue()->template set_interval<Method, Instance>(object, std::chrono::milliseconds(interval_ms));
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_interval(Instance * object, R(Class:: * method)(), unsigned long interval_ms)
+    inline connection set_interval(Instance* object, R(Class:: * method)(), unsigned long interval_ms)
     {
         return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, std::chrono::milliseconds(interval_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_interval(Instance * object, unsigned long interval_ms)
+    inline connection set_interval(Instance* object, unsigned long interval_ms)
     {
         return detail::get_timer_queue()->template set_interval<Method, Instance>(object, std::chrono::milliseconds(interval_ms));
     }
@@ -3141,27 +3159,32 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_timeout(Instance & object, R(Class:: * method)(), unsigned long timeout_ms)
+    inline connection set_timeout(Instance& object, R(Class:: * method)(), unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, std::chrono::milliseconds(timeout_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_timeout(Instance & object, unsigned long timeout_ms)
+    inline connection set_timeout(Instance& object, unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, std::chrono::milliseconds(timeout_ms));
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_timeout(Instance * object, R(Class:: * method)(), unsigned long timeout_ms)
+    inline connection set_timeout(Instance* object, R(Class:: * method)(), unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, std::chrono::milliseconds(timeout_ms));
     }
 
     template <auto Method, class Instance>
-    inline connection set_timeout(Instance * object, unsigned long timeout_ms)
+    inline connection set_timeout(Instance* object, unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->template set_timeout<Method, Instance>(object, std::chrono::milliseconds(timeout_ms));
+    }
+
+    inline void clear_timers() ROCKET_NOEXCEPT
+    {
+        detail::get_timer_queue()->clear();
     }
 #endif //~ ROCKET_NO_TIMERS
 
@@ -3263,7 +3286,7 @@ namespace rocket
             bool first = (flags & connect_as_first_slot) != 0;
             
             if constexpr (std::is_same_v<ThreadingPolicy, thread_safe_policy>) {
-                if ((flags & queued_connection) != 0) [[unlikely]] {
+                if ((flags & queued_connection) != 0) ROCKET_UNLIKELY {
                     tid = std::this_thread::get_id();
                 }
             } else {
@@ -3392,7 +3415,7 @@ namespace rocket
 #ifndef ROCKET_NO_BLOCKING_CONNECTIONS
                         && current->block_count == 0
 #endif
-                        ) [[likely]]
+                        ) ROCKET_LIKELY
                     {
                         detail::connection_scope cscope{ current, th };
 
@@ -3416,27 +3439,38 @@ namespace rocket
                             }
 #endif
                         } else {
-                            if (current->is_queued()) [[unlikely]] {
-                                std::packaged_task<void()> task([current, &collector, args...] {
-                                    if (current->is_connected()) [[likely]] {
-                                        detail::thread_local_data* th{ detail::get_thread_local_data() };
-                                        detail::connection_scope cscope{ current, th };
+                            if (current->is_queued()) ROCKET_UNLIKELY {
+                                if constexpr (std::is_void_v<R>) {
+                                    std::packaged_task<void()> task([current, args...] {
+                                        if (current->is_connected()) ROCKET_LIKELY {
+                                            detail::thread_local_data* th{ detail::get_thread_local_data() };
+                                            detail::connection_scope cscope{ current, th };
 
-                                        functional_connection* conn = static_cast<
-                                            functional_connection*>(static_cast<void*>(current));
+                                            functional_connection* conn = static_cast<
+                                                functional_connection*>(static_cast<void*>(current));
 
-                                        if constexpr (std::is_void_v<R>) {
                                             conn->slot(args...);
-                                        } else {
+                                        }
+                                    });
+
+                                    detail::get_call_queue()->put(current->get_tid(), std::move(task));
+                                } else {
+                                    // If we are calling a queued slot, and our signal requires a return value
+                                    // we actually have to block the thread until the slot was dispatched
+                                    std::packaged_task<void()> task([current, &collector, args...] {
+                                        if (current->is_connected()) ROCKET_LIKELY {
+                                            detail::thread_local_data* th{ detail::get_thread_local_data() };
+                                            detail::connection_scope cscope{ current, th };
+
+                                            functional_connection* conn = static_cast<
+                                                functional_connection*>(static_cast<void*>(current));
+
                                             collector(conn->slot(args...));
                                         }
-                                    }
-                                });
+                                    });
 
-                                std::future<void> future{ task.get_future() };
-                                detail::get_call_queue()->put(current->get_tid(), std::move(task));
-
-                                if constexpr (!std::is_void_v<R>) {
+                                    std::future<void> future{ task.get_future() };
+                                    detail::get_call_queue()->put(current->get_tid(), std::move(task));
 #ifndef ROCKET_NO_EXCEPTIONS
                                     try {
 #endif
@@ -3466,7 +3500,7 @@ namespace rocket
 
                         lock_state.lock();
 
-                        if (th->emission_aborted) [[unlikely]] {
+                        if (th->emission_aborted) ROCKET_UNLIKELY {
                             break;
                         }
                     }
@@ -3478,7 +3512,7 @@ namespace rocket
             }
 
 #ifndef ROCKET_NO_EXCEPTIONS
-            if (error) [[unlikely]] {
+            if (error) ROCKET_UNLIKELY {
                 throw invocation_slot_error{};
             }
 #endif
@@ -3558,7 +3592,7 @@ namespace rocket
         intrusive_ptr<connection_base> head;
         intrusive_ptr<connection_base> tail;
 
-        [[no_unique_address]] mutable shared_lock_state lock_state;
+        ROCKET_NO_UNIQUE_ADDRESS mutable shared_lock_state lock_state;
     };
 
     template <class Signature
@@ -3566,7 +3600,7 @@ namespace rocket
     using thread_safe_signal = signal<Signature, Collector, thread_safe_policy>;
 
     template <class Instance, class Class, class R, class... Args>
-    std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
+    inline std::function<R(Args...)> slot(Instance& object, R(Class::*method)(Args...))
     {
         return [&object, method](Args const&... args) {
             return (object.*method)(args...);
@@ -3574,7 +3608,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R, class... Args>
-    std::function<R(Args...)> slot(Instance* object, R(Class::*method)(Args...))
+    inline std::function<R(Args...)> slot(Instance* object, R(Class::*method)(Args...))
     {
         return [object, method](Args const&... args) {
             return (object->*method)(args...);
@@ -3582,24 +3616,24 @@ namespace rocket
     }
 
     template <class T>
-    void swap(intrusive_ptr<T>& p1, intrusive_ptr<T>& p2) ROCKET_NOEXCEPT
+    inline void swap(intrusive_ptr<T>& p1, intrusive_ptr<T>& p2) ROCKET_NOEXCEPT
     {
         p1.swap(p2);
     }
 
     template <class T>
-    void swap(stable_list<T>& l1, stable_list<T>& l2) ROCKET_NOEXCEPT
+    inline void swap(stable_list<T>& l1, stable_list<T>& l2) ROCKET_NOEXCEPT
     {
         l1.swap(l2);
     }
 
-    void swap(connection& c1, connection& c2) ROCKET_NOEXCEPT
+    inline void swap(connection& c1, connection& c2) ROCKET_NOEXCEPT
     {
         c1.swap(c2);
     }
 
     template <class Signature, class Collector, class ThreadingPolicy>
-    void swap(signal<Signature, Collector, ThreadingPolicy>& s1, signal<Signature, Collector, ThreadingPolicy>& s2) ROCKET_NOEXCEPT
+    inline void swap(signal<Signature, Collector, ThreadingPolicy>& s1, signal<Signature, Collector, ThreadingPolicy>& s2) ROCKET_NOEXCEPT
     {
         s1.swap(s2);
     }
