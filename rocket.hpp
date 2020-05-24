@@ -862,7 +862,7 @@ namespace rocket
         }
 
         bool initialized = false;
-        std::aligned_storage_t<sizeof(value_type), std::alignment_of<value_type>::value> buffer;
+        std::aligned_storage_t<sizeof(value_type), alignof(value_type)> buffer;
     };
 #else
     template <class T> using optional = std::optional<T>;
@@ -878,12 +878,12 @@ namespace rocket
 
         template <class U> friend struct intrusive_ptr;
 
-        intrusive_ptr() ROCKET_NOEXCEPT
+        constexpr intrusive_ptr() ROCKET_NOEXCEPT
             : ptr{ nullptr }
         {
         }
 
-        explicit intrusive_ptr(std::nullptr_t) ROCKET_NOEXCEPT
+        constexpr intrusive_ptr(std::nullptr_t) ROCKET_NOEXCEPT
             : ptr{ nullptr }
         {
         }
@@ -1326,7 +1326,7 @@ namespace rocket
             intrusive_ptr<link_element> next;
             intrusive_ptr<link_element> prev;
 
-            std::aligned_storage_t<sizeof(T), std::alignment_of<T>::value> buffer;
+            std::aligned_storage_t<sizeof(T), alignof(T)> buffer;
         };
 
         intrusive_ptr<link_element> head;
@@ -2674,7 +2674,7 @@ namespace rocket
             }
 
             template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
-            connection set_interval(Instance& object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& interval)
+            connection set_interval(Instance& object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& interval)
             {
                 connection c{
                     set_interval<Rep, Period>([&object, method] {
@@ -2702,7 +2702,7 @@ namespace rocket
             }
 
             template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
-            connection set_interval(Instance* object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& interval)
+            connection set_interval(Instance* object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& interval)
             {
                 connection c{
                     set_interval<Rep, Period>([object, method] {
@@ -2748,7 +2748,7 @@ namespace rocket
             }
 
             template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
-            connection set_timeout(Instance& object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
+            connection set_timeout(Instance& object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& timeout)
             {
                 connection c{
                     set_timeout<Rep, Period>([&object, method] {
@@ -2776,7 +2776,7 @@ namespace rocket
             }
 
             template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
-            connection set_timeout(Instance* object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
+            connection set_timeout(Instance* object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& timeout)
             {
                 connection c{
                     set_timeout<Rep, Period>([object, method] {
@@ -3088,7 +3088,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
-    inline connection set_timeout(Instance& object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
+    inline connection set_timeout(Instance& object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& timeout)
     {
         return detail::get_timer_queue()->template set_timeout<Instance, Class, R, Rep, Period>(object, method, timeout);
     }
@@ -3100,7 +3100,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R, class Rep = unsigned long, class Period = std::milli>
-    inline connection set_timeout(Instance* object, R(Class::* method)(), std::chrono::duration<Rep, Period> const& timeout)
+    inline connection set_timeout(Instance* object, R(Class::*method)(), std::chrono::duration<Rep, Period> const& timeout)
     {
         return detail::get_timer_queue()->template set_timeout<Instance, Class, R, Rep, Period>(object, method, timeout);
     }
@@ -3124,7 +3124,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_interval(Instance& object, R(Class:: * method)(), unsigned long interval_ms)
+    inline connection set_interval(Instance& object, R(Class::*method)(), unsigned long interval_ms)
     {
         return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, std::chrono::milliseconds(interval_ms));
     }
@@ -3136,7 +3136,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_interval(Instance* object, R(Class:: * method)(), unsigned long interval_ms)
+    inline connection set_interval(Instance* object, R(Class::*method)(), unsigned long interval_ms)
     {
         return detail::get_timer_queue()->template set_interval<Instance, Class, R>(object, method, std::chrono::milliseconds(interval_ms));
     }
@@ -3159,7 +3159,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_timeout(Instance& object, R(Class:: * method)(), unsigned long timeout_ms)
+    inline connection set_timeout(Instance& object, R(Class::*method)(), unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, std::chrono::milliseconds(timeout_ms));
     }
@@ -3171,7 +3171,7 @@ namespace rocket
     }
 
     template <class Instance, class Class, class R>
-    inline connection set_timeout(Instance* object, R(Class:: * method)(), unsigned long timeout_ms)
+    inline connection set_timeout(Instance* object, R(Class::*method)(), unsigned long timeout_ms)
     {
         return detail::get_timer_queue()->template set_timeout<Instance, Class, R>(object, method, std::chrono::milliseconds(timeout_ms));
     }
