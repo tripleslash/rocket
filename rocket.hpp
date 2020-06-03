@@ -457,6 +457,7 @@ int main() {
 #include <unordered_map>
 #include <deque>
 #include <chrono>
+#include <tuple>
 
 #ifndef ROCKET_NO_STD_OPTIONAL
 #   include <optional>
@@ -2895,7 +2896,7 @@ namespace rocket
             }
 
         private:
-            using connection_base = connection_base<thread_unsafe_policy>;
+            using connection_base = detail::connection_base<thread_unsafe_policy>;
 
             void init()
             {
@@ -3014,6 +3015,53 @@ namespace rocket
         {
             static call_queue queue;
             return &queue;
+        }
+
+        template <class T>
+        struct decay
+        {
+            typedef typename std::remove_reference<T>::type U;
+            typedef typename std::conditional<
+                std::is_array<U>::value,
+                typename std::remove_extent<U>::type*,
+                typename std::conditional<
+                    std::is_function<U>::value,
+                    typename std::add_pointer<U>::type,
+                    typename std::conditional<
+                        std::is_const<U>::value || !std::is_reference<T>::value,
+                        typename std::remove_cv<U>::type,
+                        T
+                    >::type
+                >::type
+            >::type type;
+        };
+
+        template <class T>
+        struct unwrap_refwrapper
+        {
+            using type = T;
+        };
+
+        template <class T>
+        struct unwrap_refwrapper<std::reference_wrapper<T>>
+        {
+            using type = T &;
+        };
+
+        template <class T>
+        using special_decay_t = typename unwrap_refwrapper<typename decay<T>::type>::type;
+
+        // This make_tuple implementation is different from std::make_tuple.
+        // This one preserves non-const references as actual reference values.
+        // However const references will be stored by value.
+
+        // make_tuple(int const&) => tuple<int>
+        // make_tuple(int&) => tuple<int&>
+
+        template <class... Types>
+        auto make_tuple(Types&&... args)
+        {
+            return std::tuple<special_decay_t<Types>...>(std::forward<Types>(args)...);
         }
     }
 
@@ -3441,7 +3489,7 @@ namespace rocket
                         } else {
                             if (current->is_queued()) ROCKET_UNLIKELY {
                                 if constexpr (std::is_void_v<R>) {
-                                    std::packaged_task<void()> task([current, args...] {
+                                    std::packaged_task<void()> task([current, args = detail::make_tuple(args...)] {
                                         if (current->is_connected()) ROCKET_LIKELY {
                                             detail::thread_local_data* th{ detail::get_thread_local_data() };
                                             detail::connection_scope cscope{ current, th };
@@ -3449,7 +3497,7 @@ namespace rocket
                                             functional_connection* conn = static_cast<
                                                 functional_connection*>(static_cast<void*>(current));
 
-                                            conn->slot(args...);
+                                            std::apply(conn->slot, args);
                                         }
                                     });
 
@@ -3457,7 +3505,7 @@ namespace rocket
                                 } else {
                                     // If we are calling a queued slot, and our signal requires a return value
                                     // we actually have to block the thread until the slot was dispatched
-                                    std::packaged_task<void()> task([current, &collector, args...] {
+                                    std::packaged_task<void()> task([current, &collector, args = std::forward_as_tuple(args...)] {
                                         if (current->is_connected()) ROCKET_LIKELY {
                                             detail::thread_local_data* th{ detail::get_thread_local_data() };
                                             detail::connection_scope cscope{ current, th };
@@ -3465,7 +3513,7 @@ namespace rocket
                                             functional_connection* conn = static_cast<
                                                 functional_connection*>(static_cast<void*>(current));
 
-                                            collector(conn->slot(args...));
+                                            collector(std::apply(conn->slot, args));
                                         }
                                     });
 
