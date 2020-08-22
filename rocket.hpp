@@ -3362,6 +3362,78 @@ namespace rocket
                 return R((*Method)(args...));
             }, flags);
         }
+        
+        template <class Instance>
+        connection connect(Instance& object, slot_type slot, connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect(slot)
+            };
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                static_cast<trackable&>(object).add_tracked_connection(c);
+            }
+            return c;
+        }
+        
+        template <class Instance, class R1, class... Args1>
+        connection connect(Instance& object, R1(*method)(Args1...), connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect(method)
+            };
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                static_cast<trackable&>(object).add_tracked_connection(c);
+            }
+            return c;
+        }
+        
+        template <class Instance>
+        connection connect(Instance& object, connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect()
+            };
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                static_cast<trackable&>(object).add_tracked_connection(c);
+            }
+            return c;
+        }
+        
+        template <class Instance>
+        connection connect(Instance* object, slot_type slot, connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect(slot)
+            };
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                static_cast<trackable*>(object)->add_tracked_connection(c);
+            }
+            return c;
+        }
+        
+        template <class Instance, class R1, class... Args1>
+        connection connect(Instance* object, R1(*method)(Args1...), connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect(method)
+            };
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                static_cast<trackable*>(object)->add_tracked_connection(c);
+            }
+            return c;
+        }
+        
+        template <class Instance>
+        connection connect(Instance* object, connection_flags flags = direct_connection)
+        {
+            connection c{
+                connect()
+            };
+            if constexpr (std::is_convertible_v<Instance*, trackable*>) {
+                static_cast<trackable*>(object)->add_tracked_connection(c);
+            }
+            return c;
+        }
 
         template <class Instance, class Class, class R1, class... Args1>
         connection connect(Instance& object, R1(Class::*method)(Args1...), connection_flags flags = direct_connection)
