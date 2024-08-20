@@ -67,6 +67,15 @@
 
 /***********************************************************************************
  * ------------------------------------------------------------------------------- *
+ * Define this if you want to disable the smart pointer extensions feature.        *
+ * ------------------------------------------------------------------------------- */
+
+#ifndef ROCKET_NO_SMARTPOINTER_EXTENSIONS
+#    define ROCKET_NO_SMARTPOINTER_EXTENSIONS
+#endif
+
+/***********************************************************************************
+ * ------------------------------------------------------------------------------- *
  * Redefine this if your compiler doesn't support the `thread_local`-keyword.      *
  * For Visual Studio < 2015 you can define it to `__declspec(thread)` for example. *
  * ------------------------------------------------------------------------------- */
@@ -84,7 +93,6 @@
 #include <initializer_list>
 #include <limits>
 #include <list>
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <type_traits>
@@ -100,6 +108,10 @@
 
 #ifndef ROCKET_NO_EXCEPTIONS
 #    include <exception>
+#endif
+
+#ifndef ROCKET_NO_SMARTPOINTER_EXTENSIONS
+#    include <memory>
 #endif
 
 #if !defined(ROCKET_NO_STABLE_LIST) || !defined(ROCKET_NO_QUEUED_CONNECTIONS)
@@ -1625,6 +1637,7 @@ namespace rocket
             bool prev;
         };
 
+#ifndef ROCKET_NO_SMARTPOINTER_EXTENSIONS
         template <class Instance, class Class, class R, class... Args>
         struct weak_mem_fn final
         {
@@ -1678,8 +1691,10 @@ namespace rocket
             std::shared_ptr<Instance> shared;
             R (Class::*method)(Args...);
         };
-    }// namespace detail
+#endif//~ ROCKET_NO_SMARTPOINTER_EXTENSIONS
+    } // namespace detail
 
+#ifndef ROCKET_NO_SMARTPOINTER_EXTENSIONS
     template <class Instance, class Class, class R, class... Args>
     inline auto bind_weak_ptr(std::weak_ptr<Instance> c, R (Class::*method)(Args...))
     {
@@ -1697,6 +1712,7 @@ namespace rocket
     {
         return detail::shared_mem_fn<Instance, Class, R, Args...>{ std::move(c), method };
     }
+#endif
 
     struct connection
     {
