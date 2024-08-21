@@ -140,6 +140,12 @@
 #    define ROCKET_MAYBE_UNUSED
 #endif
 
+#if __has_cpp_attribute(nodiscard)
+#    define ROCKET_NODISCARD [[nodiscard]]
+#else
+#    define ROCKET_NODISCARD
+#endif
+
 #if __has_cpp_attribute(no_unique_address)
 #    define ROCKET_NO_UNIQUE_ADDRESS [[no_unique_address]]
 #else
@@ -168,7 +174,7 @@ namespace rocket
             }
         }
 
-        [[nodiscard]] result_type result()
+        ROCKET_NODISCARD result_type result()
         {
             return std::move(current);
         }
@@ -194,7 +200,7 @@ namespace rocket
             }
         }
 
-        [[nodiscard]] result_type result()
+        ROCKET_NODISCARD result_type result()
         {
             return std::move(current);
         }
@@ -220,7 +226,7 @@ namespace rocket
             }
         }
 
-        [[nodiscard]] result_type result()
+        ROCKET_NODISCARD result_type result()
         {
             return std::move(current);
         }
@@ -242,7 +248,7 @@ namespace rocket
             current = std::forward<U>(value);
         }
 
-        [[nodiscard]] result_type result()
+        ROCKET_NODISCARD result_type result()
         {
             return std::move(current);
         }
@@ -263,7 +269,7 @@ namespace rocket
             values.emplace_back(std::forward<U>(value));
         }
 
-        [[nodiscard]] result_type result()
+        ROCKET_NODISCARD result_type result()
         {
             return std::move(values);
         }
@@ -367,7 +373,7 @@ namespace rocket
             }
         }
 
-        [[nodiscard]] pointer get() const noexcept
+        ROCKET_NODISCARD pointer get() const noexcept
         {
             return ptr;
         }
@@ -379,30 +385,30 @@ namespace rocket
             return p;
         }
 
-        [[nodiscard]] operator pointer() const noexcept
+        ROCKET_NODISCARD operator pointer() const noexcept
         {
             return ptr;
         }
 
-        [[nodiscard]] pointer operator->() const noexcept
+        ROCKET_NODISCARD pointer operator->() const noexcept
         {
             assert(ptr != nullptr);
             return ptr;
         }
 
-        [[nodiscard]] reference operator*() const noexcept
+        ROCKET_NODISCARD reference operator*() const noexcept
         {
             assert(ptr != nullptr);
             return *ptr;
         }
 
-        [[nodiscard]] pointer* operator&() noexcept
+        ROCKET_NODISCARD pointer* operator&() noexcept
         {
             assert(ptr == nullptr);
             return &ptr;
         }
 
-        [[nodiscard]] pointer const* operator&() const noexcept
+        ROCKET_NODISCARD pointer const* operator&() const noexcept
         {
             return &ptr;
         }
@@ -483,159 +489,165 @@ namespace rocket
     };
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator==(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator==(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
     {
         return a.get() == b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator==(intrusive_ptr<T> const& a, U* b) noexcept
+    ROCKET_NODISCARD inline bool operator==(intrusive_ptr<T> const& a, U* b) noexcept
     {
         return a.get() == b;
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator==(T* a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator==(T* a, intrusive_ptr<U> const& b) noexcept
     {
         return a == b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator!=(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator!=(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
     {
         return a.get() != b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator!=(intrusive_ptr<T> const& a, U* b) noexcept
+    ROCKET_NODISCARD inline bool operator!=(intrusive_ptr<T> const& a, U* b) noexcept
     {
         return a.get() != b;
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator!=(T* a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator!=(T* a, intrusive_ptr<U> const& b) noexcept
     {
         return a != b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator<(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator<(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
     {
         return a.get() < b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator<(intrusive_ptr<T> const& a, U* b) noexcept
+    ROCKET_NODISCARD inline bool operator<(intrusive_ptr<T> const& a, U* b) noexcept
     {
         return a.get() < b;
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator<(T* a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator<(T* a, intrusive_ptr<U> const& b) noexcept
     {
         return a < b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator<=(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator<=(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
     {
         return a.get() <= b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator<=(intrusive_ptr<T> const& a, U* b) noexcept
+    ROCKET_NODISCARD inline bool operator<=(intrusive_ptr<T> const& a, U* b) noexcept
     {
         return a.get() <= b;
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator<=(T* a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator<=(T* a, intrusive_ptr<U> const& b) noexcept
     {
         return a <= b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator>(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator>(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
     {
         return a.get() > b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator>(intrusive_ptr<T> const& a, U* b) noexcept
+    ROCKET_NODISCARD inline bool operator>(intrusive_ptr<T> const& a, U* b) noexcept
     {
         return a.get() > b;
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator>(T* a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator>(T* a, intrusive_ptr<U> const& b) noexcept
     {
         return a > b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator>=(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator>=(intrusive_ptr<T> const& a, intrusive_ptr<U> const& b) noexcept
     {
         return a.get() >= b.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator>=(intrusive_ptr<T> const& a, U* b) noexcept
+    ROCKET_NODISCARD inline bool operator>=(intrusive_ptr<T> const& a, U* b) noexcept
     {
         return a.get() >= b;
     }
 
     template <class T, class U>
-    [[nodiscard]] inline bool operator>=(T* a, intrusive_ptr<U> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator>=(T* a, intrusive_ptr<U> const& b) noexcept
     {
         return a >= b.get();
     }
 
     template <class T>
-    [[nodiscard]] inline bool operator==(intrusive_ptr<T> const& a, std::nullptr_t) noexcept
+    ROCKET_NODISCARD inline bool operator==(intrusive_ptr<T> const& a, std::nullptr_t) noexcept
     {
         return a.get() == nullptr;
     }
 
     template <class T>
-    [[nodiscard]] inline bool operator==(std::nullptr_t, intrusive_ptr<T> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator==(std::nullptr_t, intrusive_ptr<T> const& b) noexcept
     {
         return nullptr == b.get();
     }
 
     template <class T>
-    [[nodiscard]] inline bool operator!=(intrusive_ptr<T> const& a, std::nullptr_t) noexcept
+    ROCKET_NODISCARD inline bool operator!=(intrusive_ptr<T> const& a, std::nullptr_t) noexcept
     {
         return a.get() != nullptr;
     }
 
     template <class T>
-    [[nodiscard]] inline bool operator!=(std::nullptr_t, intrusive_ptr<T> const& b) noexcept
+    ROCKET_NODISCARD inline bool operator!=(std::nullptr_t, intrusive_ptr<T> const& b) noexcept
     {
         return nullptr != b.get();
     }
 
     template <class T>
-    [[nodiscard]] inline T* get_pointer(intrusive_ptr<T> const& p) noexcept
+    ROCKET_NODISCARD inline T* get_pointer(intrusive_ptr<T> const& p) noexcept
     {
         return p.get();
     }
 
     template <class T, class U>
-    [[nodiscard]] inline intrusive_ptr<U> static_pointer_cast(intrusive_ptr<T> const& p) noexcept
+    ROCKET_NODISCARD inline intrusive_ptr<T> static_pointer_cast(intrusive_ptr<U> const& p) noexcept
     {
-        return intrusive_ptr<U>{ static_cast<U*>(p.get()) };
+        return intrusive_ptr<T>{ static_cast<T*>(p.get()) };
     }
 
     template <class T, class U>
-    [[nodiscard]] inline intrusive_ptr<U> const_pointer_cast(intrusive_ptr<T> const& p) noexcept
+    ROCKET_NODISCARD inline intrusive_ptr<T> const_pointer_cast(intrusive_ptr<U> const& p) noexcept
     {
-        return intrusive_ptr<U>{ const_cast<U*>(p.get()) };
+        return intrusive_ptr<T>{ const_cast<T*>(p.get()) };
     }
 
     template <class T, class U>
-    [[nodiscard]] inline intrusive_ptr<U> dynamic_pointer_cast(intrusive_ptr<T> const& p) noexcept
+    ROCKET_NODISCARD inline intrusive_ptr<T> dynamic_pointer_cast(intrusive_ptr<U> const& p) noexcept
     {
-        return intrusive_ptr<U>{ dynamic_cast<U*>(p.get()) };
+        return intrusive_ptr<T>{ dynamic_cast<T*>(p.get()) };
+    }
+
+    template <class T, class U>
+    ROCKET_NODISCARD inline intrusive_ptr<T> reinterpret_pointer_cast(intrusive_ptr<U> const& p) noexcept
+    {
+        return intrusive_ptr<T>{ reinterpret_cast<T*>(p.get()) };
     }
 
     struct ref_count final
@@ -650,7 +662,7 @@ namespace rocket
             return --count;
         }
 
-        [[nodiscard]] unsigned long get() const noexcept
+        ROCKET_NODISCARD unsigned long get() const noexcept
         {
             return count;
         }
@@ -671,7 +683,7 @@ namespace rocket
             return --count;
         }
 
-        [[nodiscard]] unsigned long get() const noexcept
+        ROCKET_NODISCARD unsigned long get() const noexcept
         {
             return count.load(std::memory_order_relaxed);
         }
@@ -847,24 +859,24 @@ namespace rocket
                 return i;
             }
 
-            [[nodiscard]] reference operator*() const noexcept
+            ROCKET_NODISCARD reference operator*() const noexcept
             {
                 return *element->value();
             }
 
-            [[nodiscard]] pointer operator->() const noexcept
+            ROCKET_NODISCARD pointer operator->() const noexcept
             {
                 return element->value();
             }
 
             template <class V>
-            [[nodiscard]] bool operator==(iterator_base<V> const& i) const noexcept
+            ROCKET_NODISCARD bool operator==(iterator_base<V> const& i) const noexcept
             {
                 return element == i.element;
             }
 
             template <class V>
-            [[nodiscard]] bool operator!=(iterator_base<V> const& i) const noexcept
+            ROCKET_NODISCARD bool operator!=(iterator_base<V> const& i) const noexcept
             {
                 return element != i.element;
             }
@@ -960,87 +972,87 @@ namespace rocket
             return *this;
         }
 
-        [[nodiscard]] iterator begin() noexcept
+        ROCKET_NODISCARD iterator begin() noexcept
         {
             return iterator{ head->next };
         }
 
-        [[nodiscard]] iterator end() noexcept
+        ROCKET_NODISCARD iterator end() noexcept
         {
             return iterator{ tail };
         }
 
-        [[nodiscard]] const_iterator begin() const noexcept
+        ROCKET_NODISCARD const_iterator begin() const noexcept
         {
             return const_iterator{ head->next };
         }
 
-        [[nodiscard]] const_iterator end() const noexcept
+        ROCKET_NODISCARD const_iterator end() const noexcept
         {
             return const_iterator{ tail };
         }
 
-        [[nodiscard]] const_iterator cbegin() const noexcept
+        ROCKET_NODISCARD const_iterator cbegin() const noexcept
         {
             return const_iterator{ head->next };
         }
 
-        [[nodiscard]] const_iterator cend() const noexcept
+        ROCKET_NODISCARD const_iterator cend() const noexcept
         {
             return const_iterator{ tail };
         }
 
-        [[nodiscard]] reverse_iterator rbegin() noexcept
+        ROCKET_NODISCARD reverse_iterator rbegin() noexcept
         {
             return reverse_iterator{ end() };
         }
 
-        [[nodiscard]] reverse_iterator rend() noexcept
+        ROCKET_NODISCARD reverse_iterator rend() noexcept
         {
             return reverse_iterator{ begin() };
         }
 
-        [[nodiscard]] const_reverse_iterator rbegin() const noexcept
+        ROCKET_NODISCARD const_reverse_iterator rbegin() const noexcept
         {
             return const_reverse_iterator{ cend() };
         }
 
-        [[nodiscard]] const_reverse_iterator rend() const noexcept
+        ROCKET_NODISCARD const_reverse_iterator rend() const noexcept
         {
             return const_reverse_iterator{ cbegin() };
         }
 
-        [[nodiscard]] const_reverse_iterator crbegin() const noexcept
+        ROCKET_NODISCARD const_reverse_iterator crbegin() const noexcept
         {
             return const_reverse_iterator{ cend() };
         }
 
-        [[nodiscard]] const_reverse_iterator crend() const noexcept
+        ROCKET_NODISCARD const_reverse_iterator crend() const noexcept
         {
             return const_reverse_iterator{ cbegin() };
         }
 
-        [[nodiscard]] reference front() noexcept
+        ROCKET_NODISCARD reference front() noexcept
         {
             return *begin();
         }
 
-        [[nodiscard]] reference back() noexcept
+        ROCKET_NODISCARD reference back() noexcept
         {
             return *rbegin();
         }
 
-        [[nodiscard]] value_type const& front() const noexcept
+        ROCKET_NODISCARD value_type const& front() const noexcept
         {
             return *cbegin();
         }
 
-        [[nodiscard]] value_type const& back() const noexcept
+        ROCKET_NODISCARD value_type const& back() const noexcept
         {
             return *crbegin();
         }
 
-        [[nodiscard]] bool empty() const noexcept
+        ROCKET_NODISCARD bool empty() const noexcept
         {
             return cbegin() == cend();
         }
@@ -1215,12 +1227,12 @@ namespace rocket
             }
         }
 
-        [[nodiscard]] size_type size() const noexcept
+        ROCKET_NODISCARD size_type size() const noexcept
         {
             return elements;
         }
 
-        [[nodiscard]] size_type max_size() const noexcept
+        ROCKET_NODISCARD size_type max_size() const noexcept
         {
             return std::numeric_limits<size_type>::max();
         }
@@ -1439,7 +1451,7 @@ namespace rocket
 
             virtual ~connection_base() noexcept = default;
 
-            [[nodiscard]] bool is_connected() const noexcept
+            ROCKET_NODISCARD bool is_connected() const noexcept
             {
                 return prev != nullptr;
             }
@@ -1459,12 +1471,12 @@ namespace rocket
             }
 
 #ifndef ROCKET_NO_QUEUED_CONNECTIONS
-            [[nodiscard]] std::thread::id get_tid() const noexcept
+            ROCKET_NODISCARD std::thread::id get_tid() const noexcept
             {
                 return std::thread::id{};
             }
 
-            [[nodiscard]] constexpr bool is_queued() const noexcept
+            ROCKET_NODISCARD constexpr bool is_queued() const noexcept
             {
                 return false;
             }
@@ -1484,7 +1496,7 @@ namespace rocket
                 }
             }
 
-            [[nodiscard]] bool is_blocked() const noexcept
+            ROCKET_NODISCARD bool is_blocked() const noexcept
             {
                 return block_count > 0;
             }
@@ -1503,7 +1515,7 @@ namespace rocket
 
             virtual ~connection_base() noexcept = default;
 
-            [[nodiscard]] bool is_connected() const noexcept
+            ROCKET_NODISCARD bool is_connected() const noexcept
             {
                 return prev != nullptr;
             }
@@ -1525,12 +1537,12 @@ namespace rocket
             }
 
 #ifndef ROCKET_NO_QUEUED_CONNECTIONS
-            [[nodiscard]] std::thread::id const& get_tid() const noexcept
+            ROCKET_NODISCARD std::thread::id const& get_tid() const noexcept
             {
                 return thread_id;
             }
 
-            [[nodiscard]] bool is_queued() const noexcept
+            ROCKET_NODISCARD bool is_queued() const noexcept
             {
                 return thread_id != std::thread::id{} && thread_id != std::this_thread::get_id();
             }
@@ -1552,7 +1564,7 @@ namespace rocket
                 }
             }
 
-            [[nodiscard]] bool is_blocked() const noexcept
+            ROCKET_NODISCARD bool is_blocked() const noexcept
             {
                 return (*static_cast<unsigned long const volatile*>(&block_count)) > 0;
             }
@@ -1591,7 +1603,7 @@ namespace rocket
             bool emission_aborted;
         };
 
-        inline thread_local_data* get_thread_local_data() noexcept
+        ROCKET_NODISCARD inline thread_local_data* get_thread_local_data() noexcept
         {
             static ROCKET_THREAD_LOCAL thread_local_data th;
             return &th;
@@ -1771,22 +1783,22 @@ namespace rocket
             return *this;
         }
 
-        [[nodiscard]] bool operator==(connection const& rhs) const noexcept
+        ROCKET_NODISCARD bool operator==(connection const& rhs) const noexcept
         {
             return base == rhs.base && is_thread_safe == rhs.is_thread_safe;
         }
 
-        [[nodiscard]] bool operator!=(connection const& rhs) const noexcept
+        ROCKET_NODISCARD bool operator!=(connection const& rhs) const noexcept
         {
             return base != rhs.base || is_thread_safe != rhs.is_thread_safe;
         }
 
-        [[nodiscard]] explicit operator bool() const noexcept
+        ROCKET_NODISCARD explicit operator bool() const noexcept
         {
             return is_connected();
         }
 
-        [[nodiscard]] bool is_connected() const noexcept
+        ROCKET_NODISCARD bool is_connected() const noexcept
         {
             if (base != nullptr)
             {
@@ -1805,7 +1817,7 @@ namespace rocket
         }
 
 #ifndef ROCKET_NO_BLOCKING_CONNECTIONS
-        [[nodiscard]] bool is_blocked() const noexcept
+        ROCKET_NODISCARD bool is_blocked() const noexcept
         {
             if (base != nullptr)
             {
@@ -2063,7 +2075,7 @@ namespace rocket
         scoped_connection_container container;
     };
 
-    [[nodiscard]] inline connection current_connection() noexcept
+    ROCKET_NODISCARD inline connection current_connection() noexcept
     {
         auto th = detail::get_thread_local_data();
         return connection{ th->current_connection, th->is_thread_safe_connection };
@@ -2553,7 +2565,7 @@ namespace rocket
         // make_tuple(int&) => tuple<int&>
 
         template <class... Types>
-        [[nodiscard]] auto make_tuple(Types&&... args)
+        ROCKET_NODISCARD auto make_tuple(Types&&... args)
         {
             return std::tuple<special_decay_t<Types>...>(std::forward<Types>(args)...);
         }
@@ -2974,7 +2986,7 @@ namespace rocket
             }
         }
 
-        [[nodiscard]] std::size_t get_slot_count() const noexcept
+        ROCKET_NODISCARD std::size_t get_slot_count() const noexcept
         {
             std::size_t count{ 0 };
             std::scoped_lock<shared_lock_state> guard{ lock_state };
@@ -3276,13 +3288,13 @@ namespace rocket
     using thread_safe_signal = signal<Signature, Collector, thread_safe_policy>;
 
     template <class Instance, class Class, class R, class... Args>
-    [[nodiscard]] inline std::function<R(Args...)> slot(Instance& object, R (Class::*method)(Args...))
+    ROCKET_NODISCARD inline std::function<R(Args...)> slot(Instance& object, R (Class::*method)(Args...))
     {
         return [&object, method](Args const&... args) { return (object.*method)(args...); };
     }
 
     template <class Instance, class Class, class R, class... Args>
-    [[nodiscard]] inline std::function<R(Args...)> slot(Instance* object, R (Class::*method)(Args...))
+    ROCKET_NODISCARD inline std::function<R(Args...)> slot(Instance* object, R (Class::*method)(Args...))
     {
         return [object, method](Args const&... args) { return (object->*method)(args...); };
     }
